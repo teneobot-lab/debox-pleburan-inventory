@@ -49,6 +49,7 @@ function App() {
   const [form, setForm] = useState(emptyForm), [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(""), [moreOpen, setMoreOpen] = useState(false);
   const [filter, setFilter] = useState("Semua"), [toast, setToast] = useState("");
+  const [quickAddQuery, setQuickAddQuery] = useState(""), [quickAddOpen, setQuickAddOpen] = useState(false);
   const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
@@ -64,6 +65,7 @@ function App() {
   useEffect(() => { if (session) load(); }, [session]);
 
   const items = data.Master_Barang || [];
+  const quickAddResults = items.filter(item => (String(item.nama || "") + " " + String(item.kode || "")).toLowerCase().includes(quickAddQuery.trim().toLowerCase())).slice(0,8);
   const calc = items.map(i => {
     const sum = key => (data[key] || []).filter(x => x.kode === i.kode).reduce((a,x) => a + Number(x.jumlah || 0), 0);
     const awal = sum("Stok_Awal"), masuk = sum("Barang_Masuk"), jual = sum("Penjualan"), reject = sum("Barang_Reject");
@@ -188,6 +190,20 @@ function App() {
       <section className="content">
         {error && <div className="alert" role="alert"><AlertTriangle size={17}/><span>{error}</span><button className="alert-close" onClick={()=>setError("")} aria-label="Tutup pesan"><X size={16}/></button></div>}
 
+        {!loading && isTxn && <div className="quick-add-wrap">
+          <label className="searchbox quick-add-search"><Search size={19}/><input
+            value={quickAddQuery}
+            onFocus={()=>setQuickAddOpen(true)}
+            onChange={e=>{setQuickAddQuery(e.target.value);setQuickAddOpen(true);}}
+            placeholder="Cari barang untuk menambahkan transaksi..."
+            aria-label="Cari barang untuk transaksi"
+          />{quickAddQuery && <button type="button" className="quick-add-clear" onClick={()=>{setQuickAddQuery("");setQuickAddOpen(false);}} aria-label="Hapus pencarian"><X size={17}/></button>}</label>
+          {quickAddOpen && quickAddQuery.trim() && <div className="quick-add-results">
+            {quickAddResults.length ? quickAddResults.map(item=><button type="button" key={item.kode} onClick={()=>startTransactionForItem(item)}>
+              <span><b>{item.nama}</b><small>{item.kode} · Stok {fmt(calc.find(x=>x.kode===item.kode)?.sistem ?? 0)} {item.satuan||"PCS"}</small></span><Plus size={18}/>
+            </button>) : <p>Barang tidak ditemukan.</p>}
+          </div>}
+        </div>}
         {loading ? <Loading /> : page === "Dashboard" ?
           <Dashboard calc={calc} data={data} total={total} setPage={changePage}/> :
         isStockPage ?
@@ -247,7 +263,7 @@ function App() {
           </div> :
           <div className="panel">
             <div className="panel-heading"><div><h2>{page}</h2><p>{rows.length} catatan tersimpan</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
-            <div className="mobile-records">{rows.length ? rows.map((r,i)=><RecordCard key={r.id||r.kode||i} row={r} page={page}/>) : <EmptyState text="Belum ada data. Ketuk + untuk menambah."/>}</div>
+            <div className="mobile-records">{rows.length ? rows.map((r,i)=><RecordCard key={r.id||r.kode||i} row={r} page={page}/>) : <EmptyState text="Belum ada data. Gunakan pencarian di atas untuk menambahkan transaksi."/>}</div>
             <div className="desktop-table"><Table rows={rows} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}}/></div>
           </div>}
 
@@ -255,7 +271,7 @@ function App() {
       </section>
     </main>
 
-    {isTxn || isStockPage ? <button className="fab" onClick={()=>openForm(isStockPage?"Master_Barang":sheetMap[page])} aria-label="Tambah data"><Plus size={24}/></button> : null}
+    {isStockPage ? <button className="fab" onClick={()=>openForm("Master_Barang")} aria-label="Tambah barang"><Plus size={24}/></button> : null}
 
     <nav className="bottom-nav" aria-label="Navigasi utama">
       {primaryMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} className={page===label?"bottom-item active":"bottom-item"} onClick={()=>changePage(label)}><Icon size={20}/><span>{label==="Rekap Selisih"?"Selisih":label==="Data Barang"?"Barang":label==="Barang Masuk"?"Masuk":label}</span></button>;})}
