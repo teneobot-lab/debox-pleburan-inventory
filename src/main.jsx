@@ -104,6 +104,21 @@ function App() {
     setForm({ ...emptyForm, sheet, satuan:"PCS" });
     setModal(true); setExpanded("");
   };
+  const startTransactionForItem = item => {
+    const sheet = sheetMap[page];
+    if (!sheet || !item) return;
+    setForm({
+      ...emptyForm,
+      sheet,
+      satuan: item.satuan || "PCS",
+      kode: item.kode,
+      nama: item.nama
+    });
+    setQuickAddQuery("");
+    setQuickAddOpen(false);
+    setModal(true);
+    setExpanded("");
+  };
   const save = async e => {
     e.preventDefault();
     if (saving) return;
