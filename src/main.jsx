@@ -52,6 +52,7 @@ function App() {
   const [quickAddQuery, setQuickAddQuery] = useState(""), [quickAddOpen, setQuickAddOpen] = useState(false);
   const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
   const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
+  const [expandedTransactionDate, setExpandedTransactionDate] = useState("");
   const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
@@ -177,6 +178,11 @@ function App() {
   const historyGroups = isHistory ? rows.reduce((acc,row) => {
     const key = row.tanggal || "Tanpa tanggal"; (acc[key] ||= []).push(row); return acc;
   }, {}) : {};
+  const transactionGroups = isTxn ? rows.reduce((acc,row) => {
+    const key = String(row.tanggal || "Tanpa tanggal").slice(0,10);
+    (acc[key] ||= []).push(row); return acc;
+  }, {}) : {};
+  const sortedTransactionGroups = Object.entries(transactionGroups).sort((a,b)=>b[0].localeCompare(a[0]));
 
   useEffect(() => {
     if (!toast) return;
@@ -320,9 +326,24 @@ function App() {
             {!rows.length && <EmptyState text="Belum ada riwayat transaksi."/>}
           </div> :
           <div className="panel">
-            <div className="panel-heading"><div><h2>{page}</h2><p>{rows.length} catatan tersimpan</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
-            <div className="mobile-records">{rows.length ? rows.map((r,i)=><RecordCard key={r.id||r.kode||i} row={r} page={page}/>) : <EmptyState text="Belum ada data. Gunakan pencarian di atas untuk menambahkan transaksi."/>}</div>
-            <div className="desktop-table"><Table rows={rows} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}}/></div>
+            <div className="panel-heading"><div><h2>{page}</h2><p>{isTxn ? sortedTransactionGroups.length+" kelompok tanggal · "+rows.length+" item tersimpan" : rows.length+" catatan tersimpan"}</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+            {isTxn ? <div className="date-transaction-groups">{sortedTransactionGroups.length ? sortedTransactionGroups.map(([date,entries])=>{
+              const opened=expandedTransactionDate===date;
+              const quantity=entries.reduce((sum,row)=>sum+Number(row.jumlah||0),0);
+              return <section className={"date-transaction-card"+(opened?" opened":"")} key={date}>
+                <button type="button" className="date-transaction-trigger" onClick={()=>setExpandedTransactionDate(opened?"":date)} aria-expanded={opened}>
+                  <span className="date-transaction-icon"><CalendarDays size={19}/></span>
+                  <span className="date-transaction-title"><b>{dateLabel(date)}</b><small>{entries.length} item · Total jumlah {fmt(quantity)}</small></span>
+                  <span className="date-transaction-chevron">{opened?<ChevronUp size={19}/>:<ChevronDown size={19}/>}</span>
+                </button>
+                {opened && <div className="date-transaction-details">{entries.map((row,index)=><div className="date-transaction-item" key={row.id||row.kode+"-"+index}>
+                  <span><b>{row.nama||row.kode}</b><small>{row.kode}{row.kategori?" · "+row.kategori:""}{row.catatan?" · "+row.catatan:""}</small></span>
+                  <strong>{fmt(row.jumlah)} <small>{row.satuan||"unit"}</small></strong>
+                </div>)}</div>}
+              </section>;
+            }) : <EmptyState text="Belum ada transaksi pada pencarian ini."/>}</div>
+            : <><div className="mobile-records">{rows.length ? rows.map((r,i)=><RecordCard key={r.id||r.kode||i} row={r} page={page}/>) : <EmptyState text="Belum ada data. Gunakan pencarian di atas untuk menambahkan transaksi."/>}</div>
+            <div className="desktop-table"><Table rows={rows} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}}/></div></>}
           </div>}
 
         <footer>DEBOX PLEBURAN <span>·</span> Inventory Management</footer>
