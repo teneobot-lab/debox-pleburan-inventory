@@ -49,6 +49,7 @@ function App() {
   const [form, setForm] = useState(emptyForm), [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(""), [moreOpen, setMoreOpen] = useState(false);
   const [filter, setFilter] = useState("Semua"), [toast, setToast] = useState("");
+  const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
     setLoading(true); setError("");
@@ -70,6 +71,19 @@ function App() {
     const sistem = awal + masuk - jual - reject;
     return { ...i, awal, masuk, jual, reject, sistem, fisik: fisik ? Number(fisik.jumlah) : null, selisih: fisik ? Number(fisik.jumlah) - sistem : null };
   });
+  const reconcileRows = useMemo(() => items.map(item => {
+    const sumUntil = key => (data[key] || []).filter(x => x.kode === item.kode && String(x.tanggal || "").slice(0,10) <= reconcileDate).reduce((n,x) => n + Number(x.jumlah || 0), 0);
+    const sistem = sumUntil("Stok_Awal") + sumUntil("Barang_Masuk") - sumUntil("Penjualan") - sumUntil("Barang_Reject");
+    const opname = (data.Stok_Opname || []).filter(x => x.kode === item.kode && String(x.tanggal || "").slice(0,10) === reconcileDate).sort((a,b) => String(b.waktu || "").localeCompare(String(a.waktu || "")))[0];
+    const fisik = opname ? Number(opname.jumlah) : null;
+    return { ...item, sistem, fisik, selisih: fisik === null ? null : fisik - sistem };
+  }), [items, data, reconcileDate]);
+  const filteredReconcileRows = useMemo(() => reconcileRows.filter(item => {
+    const q = query.trim().toLowerCase();
+    const matches = (String(item.nama || "") + " " + String(item.kode || "") + " " + String(item.kategori || "")).toLowerCase().includes(q);
+    const status = item.selisih === null ? "Belum Opname" : item.selisih < 0 ? "Minus" : item.selisih > 0 ? "Surplus" : "Sesuai";
+    return matches && (reconcileFilter === "Semua" || status === reconcileFilter);
+  }), [reconcileRows, query, reconcileFilter]);
   const total = key => (data[key] || []).reduce((a,x) => a + Number(x.jumlah || 0), 0);
   const rows = useMemo(() => {
     const source = keyByPage[page] ? (data[keyByPage[page]] || []) : [];
@@ -160,9 +174,37 @@ function App() {
             <div className="desktop-table"><Table rows={shownStock} columns={["kode","nama","sistem","stok_minimum"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",stok_minimum:"Min. Stok"}}/></div>
           </section> :
         page === "Rekap Selisih" ?
-          <div className="panel"><div className="panel-heading"><div><h2>Rekap stok & selisih</h2><p>Selisih dihitung dari stok fisik opname terakhir.</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari barang..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
-            <div className="stock-cards">{calc.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(query.toLowerCase())).map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)} showPhysical/>)}</div>
-            <div className="desktop-table"><Table rows={calc} columns={["kode","nama","sistem","fisik","selisih"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",fisik:"Stok Fisik",selisih:"Selisih"}}/></div>
+          <div className="reconcile-page">
+            <div className="reconcile-heading">
+              <div><span className="section-kicker">ANALISIS PERSEDIAAN</span><h2>Rekap Selisih Harian</h2><p>Bandingkan stok sistem dengan hasil opname pada tanggal yang dipilih.</p></div>
+              <div className="reconcile-date"><CalendarDays size={18}/><input aria-label="Tanggal rekap" type="date" value={reconcileDate} onChange={e=>setReconcileDate(e.target.value)}/></div>
+            </div>
+            <div className="reconcile-stats">
+              <Summary label="Barang diperiksa" value={fmt(reconcileRows.length)}/>
+              <Summary label="Selisih minus" value={fmt(reconcileRows.filter(x=>x.selisih!==null&&x.selisih<0).length)}/>
+              <Summary label="Surplus" value={fmt(reconcileRows.filter(x=>x.selisih!==null&&x.selisih>0).length)}/>
+              <Summary label="Belum opname" value={fmt(reconcileRows.filter(x=>x.fisik===null).length)}/>
+            </div>
+            <div className="reconcile-toolbar">
+              <label className="searchbox"><Search size={18}/><input placeholder="Cari nama barang atau kode..." value={query} onChange={e=>setQuery(e.target.value)}/></label>
+              <div className="filter-chips">{["Semua","Minus","Surplus","Sesuai","Belum Opname"].map(x=><button key={x} className={reconcileFilter===x?"chip active":"chip"} onClick={()=>setReconcileFilter(x)}>{x}</button>)}</div>
+            </div>
+            <div className="reconcile-table-wrap">
+              <div className="reconcile-table-scroll"><table className="reconcile-table"><thead><tr><th>Barang</th><th>Stok Sistem</th><th>Stok Fisik</th><th>Selisih</th><th>Status</th></tr></thead>
+                <tbody>{filteredReconcileRows.length?filteredReconcileRows.map(item=><tr key={item.kode}>
+                  <td><div className="reconcile-item"><b>{item.nama}</b><small>{item.kode}{item.kategori?" · "+item.kategori:""}</small></div></td>
+                  <td>{fmt(item.sistem)} <small>{item.satuan||"PCS"}</small></td>
+                  <td>{item.fisik===null?<span className="muted">Belum diinput</span>:<>{fmt(item.fisik)} <small>{item.satuan||"PCS"}</small></>}</td>
+                  <td>{item.selisih===null?<span className="muted">—</span>:<strong className={item.selisih<0?"negative":item.selisih>0?"positive":"neutral"}>{item.selisih>0?"+":""}{fmt(item.selisih)}</strong>}</td>
+                  <td><span className={"reconcile-status "+(item.selisih===null?"pending":item.selisih<0?"minus":item.selisih>0?"surplus":"match")}>{item.selisih===null?"Belum opname":item.selisih<0?"Minus":item.selisih>0?"Surplus":"Sesuai"}</span></td>
+                </tr>):<tr><td colSpan="5" className="empty">Tidak ada barang sesuai pencarian atau filter.</td></tr>}</tbody>
+              </table></div>
+              <div className="reconcile-mobile">{filteredReconcileRows.map(item=><article className="reconcile-mobile-card" key={item.kode}>
+                <div className="reconcile-mobile-top"><div><b>{item.nama}</b><small>{item.kode}</small></div><span className={"reconcile-status "+(item.selisih===null?"pending":item.selisih<0?"minus":item.selisih>0?"surplus":"match")}>{item.selisih===null?"Belum opname":item.selisih<0?"Minus":item.selisih>0?"Surplus":"Sesuai"}</span></div>
+                <div className="reconcile-mobile-values"><div><small>Stok sistem</small><b>{fmt(item.sistem)}</b></div><div><small>Stok fisik</small><b>{item.fisik===null?"—":fmt(item.fisik)}</b></div><div><small>Selisih</small><b className={item.selisih===null?"":item.selisih<0?"negative":item.selisih>0?"positive":"neutral"}>{item.selisih===null?"—":(item.selisih>0?"+":"")+fmt(item.selisih)}</b></div></div>
+              </article>)}</div>
+            </div>
+            <div className="reconcile-footnote">Stok sistem dihitung sampai dengan {reconcileDate}. Selisih = stok fisik − stok sistem. Data opname hari lain tidak dicampur.</div>
           </div> :
         page === "Laporan" ?
           <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
