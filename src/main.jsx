@@ -15,7 +15,8 @@ const today = () => new Date().toLocaleDateString("en-CA");
 const emptyForm = { tanggal: today(), kode: "", nama: "", jumlah: "", kategori: "", catatan: "" };
 
 function App() {
-  const [page, setPage] = useState("Dashboard"), [data, setData] = useState({}), [loading, setLoading] = useState(true);\n  const [session, setSession] = useState(null), [authReady, setAuthReady] = useState(false);
+  const [page, setPage] = useState("Dashboard"), [data, setData] = useState({}), [loading, setLoading] = useState(true);
+  const [session, setSession] = useState(null), [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState(""), [query, setQuery] = useState(""), [modal, setModal] = useState(false);
   const [form, setForm] = useState(emptyForm), [mobile, setMobile] = useState(false), [saving, setSaving] = useState(false);
   const load = async () => {
@@ -23,7 +24,8 @@ function App() {
     try { const r = await api("init"); setData(r.data || {}); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   };
-  useEffect(() => { getSession().then(setSession).catch(e => setError(e.message)).finally(() => setAuthReady(true)); return watchAuth(setSession); }, []);\n  useEffect(() => { if (session) load(); }, [session]);
+  useEffect(() => { getSession().then(setSession).catch(e => setError(e.message)).finally(() => setAuthReady(true)); return watchAuth(setSession); }, []);
+  useEffect(() => { if (session) load(); }, [session]);
   const items = data.Master_Barang || [];
   const rows = useMemo(() => {
     const key = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
@@ -51,7 +53,9 @@ function App() {
   const sheetMap = { "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname" };
   const activeKey = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
   const shown = page === "Rekap Selisih" ? calc : rows;
-  if (!authReady) return <div className="auth-screen"><div className="auth-card">Memeriksa sesi login...</div></div>;\n  if (!session) return <Login />;\n  return <div className="app">
+  if (!authReady) return <div className="auth-screen"><div className="auth-card">Memeriksa sesi login...</div></div>;
+  if (!session) return <Login />;
+  return <div className="app">
     <aside className={mobile ? "sidebar show" : "sidebar"}>
       <div className="brand"><div className="brandmark">D</div><div><b>DEBOX PLEBURAN</b><small>INVENTORY SYSTEM</small></div><button className="mobile-close" onClick={()=>setMobile(false)}><X size={18}/></button></div>
       <div className="nav-caption">WORKSPACE</div>
