@@ -180,7 +180,12 @@ function App() {
   const isStockPage = page === "Data Barang";
   const activeKey = keyByPage[page];
   const isHistory = page === "Riwayat Transaksi";
-  const historyRows = (data.Riwayat_Aktivitas || []).filter(r=>(historyType==="Semua" || String(r.jenis||"").replaceAll("_"," ").toLowerCase().includes(historyType.toLowerCase())) && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()));
+  const historyDiffs = (data.Stok_Opname||[]).map(o=>{
+    const d=String(o.tanggal||"").slice(0,10),sum=k=>(data[k]||[]).filter(x=>x.kode===o.kode&&String(x.tanggal||"").slice(0,10)<=d).reduce((s,x)=>s+Number(x.jumlah||0),0);
+    const sistem=sum("Stok_Awal")+sum("Barang_Masuk")-sum("Penjualan")-sum("Barang_Reject");
+    return {...o,jenis:"Selisih",jumlah:Number(o.jumlah||0)-sistem,stok_sistem:sistem,stok_fisik:Number(o.jumlah||0)};
+  });
+  const historyRows = [...(data.Riwayat_Aktivitas||[]),...historyDiffs].filter(r=>(historyType==="Semua" || (historyType==="Selisih" ? r.jenis==="Selisih" : String(r.jenis||"").replaceAll("_"," ").toLowerCase().includes(historyType.toLowerCase()))) && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()));
   const historyGroups = isHistory ? historyRows.reduce((acc,row) => {
     const key = row.tanggal || "Tanpa tanggal"; (acc[key] ||= []).push(row); return acc;
   }, {}) : {};
@@ -360,7 +365,7 @@ function App() {
             </div>
             <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
         isHistory ?
-          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="filter-chips history-filters">{["Semua","Barang Masuk","Penjualan","Opname","Barang Reject"].map(x=><button key={x} className={historyType===x?"chip active":"chip"} onClick={()=>setHistoryType(x)}>{x}</button>)}</div>
+          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="filter-chips history-filters">{["Semua","Barang Masuk","Penjualan","Opname","Selisih","Barang Reject"].map(x=><button key={x} className={historyType===x?"chip active":"chip"} onClick={()=>setHistoryType(x)}>{x}</button>)}</div>
             {Object.entries(historyGroups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,entries])=><div className="history-group" key={date}><h3><CalendarDays size={16}/>{dateLabel(date)}</h3>{entries.map((r,i)=><div className="history-row" key={r.id||i}><div className="history-mark"/><div className="history-copy"><b>{r.nama}</b><small>{r.kode} · {r.jenis?.replaceAll("_"," ") || "Transaksi"} · {r.catatan || "Tanpa catatan"}</small></div><strong className={["Penjualan","Barang_Reject"].includes(r.jenis)?"negative":"positive"}>{["Penjualan","Barang_Reject"].includes(r.jenis)?"−":"+"}{fmt(r.jumlah)}</strong></div>)}</div>)}
             {!historyRows.length && <EmptyState text="Belum ada riwayat transaksi untuk filter ini."/>}
           </div> :
