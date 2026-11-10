@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2, ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, Plus, Search, Menu, X, AlertTriangle, Boxes, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
-import { api } from "./api";
+import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
 
 const menus = [
@@ -15,7 +15,7 @@ const today = () => new Date().toLocaleDateString("en-CA");
 const emptyForm = { tanggal: today(), kode: "", nama: "", jumlah: "", kategori: "", catatan: "" };
 
 function App() {
-  const [page, setPage] = useState("Dashboard"), [data, setData] = useState({}), [loading, setLoading] = useState(true);
+  const [page, setPage] = useState("Dashboard"), [data, setData] = useState({}), [loading, setLoading] = useState(true);\n  const [session, setSession] = useState(null), [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState(""), [query, setQuery] = useState(""), [modal, setModal] = useState(false);
   const [form, setForm] = useState(emptyForm), [mobile, setMobile] = useState(false), [saving, setSaving] = useState(false);
   const load = async () => {
@@ -23,7 +23,7 @@ function App() {
     try { const r = await api("init"); setData(r.data || {}); }
     catch (e) { setError(e.message); } finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { getSession().then(setSession).catch(e => setError(e.message)).finally(() => setAuthReady(true)); return watchAuth(setSession); }, []);\n  useEffect(() => { if (session) load(); }, [session]);
   const items = data.Master_Barang || [];
   const rows = useMemo(() => {
     const key = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
@@ -51,29 +51,29 @@ function App() {
   const sheetMap = { "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname" };
   const activeKey = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
   const shown = page === "Rekap Selisih" ? calc : rows;
-  return <div className="app">
+  if (!authReady) return <div className="auth-screen"><div className="auth-card">Memeriksa sesi login...</div></div>;\n  if (!session) return <Login />;\n  return <div className="app">
     <aside className={mobile ? "sidebar show" : "sidebar"}>
       <div className="brand"><div className="brandmark">D</div><div><b>DEBOX PLEBURAN</b><small>INVENTORY SYSTEM</small></div><button className="mobile-close" onClick={()=>setMobile(false)}><X size={18}/></button></div>
       <div className="nav-caption">WORKSPACE</div>
       <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>{setPage(label);setQuery("");setMobile(false)}}><Icon size={18}/><span>{label}</span>{label==="Barang Reject" && <i className="dot"/>}</button>)}</nav>
-      <div className="sidebar-foot"><span className="live-dot"/> Google Sheets Database <small>DEBOX · PLEBURAN</small></div>
+      <div className="sidebar-foot"><span className="live-dot"/> Supabase Database <small>DEBOX · PLEBURAN</small></div>
     </aside>
     {mobile && <div className="scrim" onClick={()=>setMobile(false)}/>}
     <main className="main">
-      <header className="topbar"><button className="menu-btn" onClick={()=>setMobile(true)}><Menu/></button><div className="crumb">Workspace <span>/</span> <b>{title}</b></div><div className="top-actions"><span className="today">{new Date().toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</span><button className="icon-btn" onClick={load} title="Refresh"><RefreshCw size={17}/></button><div className="avatar">DP</div></div></header>
+      <header className="topbar"><button className="menu-btn" onClick={()=>setMobile(true)}><Menu/></button><div className="crumb">Workspace <span>/</span> <b>{title}</b></div><div className="top-actions"><span className="today">{new Date().toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</span><button className="icon-btn" onClick={load} title="Refresh"><RefreshCw size={17}/></button><div className="avatar">DP</div><button className="secondary logout-btn" onClick={signOut}>Keluar</button></div></header>
       <section className="content">
         <div className="page-head"><div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>{title}</h1><p>{page==="Dashboard"?"Pantau pergerakan dan kondisi stok barang secara terpusat.": "Kelola dan pantau data "+title.toLowerCase()+"."}</p></div>
           <div className="head-actions">{isTxn && <button className="primary" onClick={()=>openForm(sheetMap[page])}><Plus size={17}/> Tambah Data</button>}<button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div>
         </div>
         {error && <div className="alert"><AlertTriangle size={17}/><span>{error}</span></div>}
-        {loading ? <div className="loading"><span className="spinner"/> Mengambil data dari Google Sheets...</div> :
+        {loading ? <div className="loading"><span className="spinner"/> Mengambil data dari Supabase...</div> :
         page==="Dashboard" ? <Dashboard calc={calc} data={data} total={total} setPage={setPage}/> :
         page==="Rekap Selisih" ? <div className="panel"><div className="panel-top"><div><h3>Rekap stok & selisih</h3><p>Selisih dihitung dari stok fisik opname terakhir.</p></div><input className="search" placeholder="Cari barang..." value={query} onChange={e=>setQuery(e.target.value)}/></div><Table rows={shown} columns={["kode","nama","sistem","fisik","selisih"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",fisik:"Stok Fisik",selisih:"Selisih"}}/></div> :
         page==="Laporan" ? <div className="grid-two"><div className="panel"><h3>Ringkasan transaksi</h3>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname", (data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row"><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h3>Catatan perhitungan</h3><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
         <div className="panel"><div className="panel-top"><div><h3>{page}</h3><p>{shown.length} catatan tersimpan</p></div><div className="table-tools"><label className="searchbox"><Search size={16}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label>{page==="Data Barang" && <button className="primary" onClick={()=>openForm("Master_Barang")}><Plus size={16}/> Barang</button>}</div></div>
           <Table rows={shown} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}} empty="Belum ada data. Tambahkan catatan pertama."/>
         </div>}
-        <footer>DEBOX PLEBURAN <span>•</span> Inventory Management <span className="foot-right">Data tersinkron melalui Google Sheets</span></footer>
+        <footer>DEBOX PLEBURAN <span>•</span> Inventory Management <span className="foot-right">Data tersinkron melalui Supabase</span></footer>
       </section>
     </main>
     {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}><form className="modal" onSubmit={save}><div className="modal-head"><div><small>INPUT DATA</small><h2>{form.sheet==="Master_Barang"?"Tambah Barang": "Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)}><X/></button></div>
@@ -81,6 +81,11 @@ function App() {
       <><Field label="Tanggal" type="date" value={form.tanggal} onChange={v=>setForm({...form,tanggal:v})} required/><label className="field"><span>Barang</span><select required value={form.kode} onChange={e=>{const i=items.find(x=>x.kode===e.target.value);setForm({...form,kode:e.target.value,nama:i?.nama||""})}}><option value="">Pilih barang...</option>{items.map(i=><option value={i.kode}>{i.kode} — {i.nama}</option>)}</select></label><Field label="Jumlah" type="number" value={form.jumlah} onChange={v=>setForm({...form,jumlah:v})} required/><Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/><Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/></>}
       <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":"Simpan Data"}</button></div></form></div>}
   </div>;
+}
+function Login(){
+ const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const submit=async e=>{e.preventDefault();setBusy(true);setError("");try{await signIn(email.trim(),password);}catch(err){setError(err.message||"Login gagal.");}finally{setBusy(false);}};
+ return <div className="auth-screen"><form className="auth-card" onSubmit={submit}><div className="brandmark auth-mark">D</div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>Inventory Login</h1><p>Masuk untuk mengelola data persediaan.</p>{error&&<div className="alert">{error}</div>}<label className="field"><span>Email</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label className="field"><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label><button className="primary auth-submit" disabled={busy}>{busy?"Memproses...":"Masuk"}</button><small>Akun dibuat administrator melalui Supabase Dashboard.</small></form></div>;
 }
 function Field({label,value,onChange,type="text",required=false}){return <label className="field"><span>{label}</span><input type={type} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
 function Table({rows,columns,labels={},empty="Tidak ada data."}){return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th>{labels[c]||c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i}>{columns.map(c=><td>{c==="selisih"&&r[c]!=null?<span className={Number(r[c])<0?"negative":Number(r[c])>0?"positive":"neutral"}>{Number(r[c])>0?"+":""}{fmt(r[c])}</span>:r[c]??"—"}</td>)}</tr>):<tr><td className="empty" colSpan={columns.length}>{empty}</td></tr>}</tbody></table></div>}
