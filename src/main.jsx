@@ -190,6 +190,28 @@ function App() {
   }, {}) : {};
   const sortedTransactionGroups = Object.entries(transactionGroups).sort((a,b)=>b[0].localeCompare(a[0]));
 
+
+  const reportRows = useMemo(() => {
+    const q=reportQuery.trim().toLowerCase();
+    const inRange=r=>(!reportFrom||String(r.tanggal||"").slice(0,10)>=reportFrom)&&(!reportTo||String(r.tanggal||"").slice(0,10)<=reportTo);
+    const matches=r=>(String(r.nama||"")+" "+String(r.kode||"")+" "+String(r.catatan||"")).toLowerCase().includes(q);
+    const rows=(data.Riwayat_Aktivitas||[]).filter(r=>inRange(r)&&matches(r)&&(reportType==="Semua"||String(r.jenis||"").replaceAll("_"," ").toLowerCase().includes(reportType.toLowerCase())));
+    if(reportType==="Semua"||reportType==="Selisih") (data.Stok_Opname||[]).filter(inRange).forEach(o=>{
+      const d=String(o.tanggal||"").slice(0,10);
+      const sum=k=>(data[k]||[]).filter(x=>x.kode===o.kode&&String(x.tanggal||"").slice(0,10)<=d).reduce((s,x)=>s+Number(x.jumlah||0),0);
+      const sistem=sum("Stok_Awal")+sum("Barang_Masuk")-sum("Penjualan")-sum("Barang_Reject");
+      const x={...o,jenis:"Selisih",stok_sistem:sistem,stok_fisik:Number(o.jumlah||0),jumlah:Number(o.jumlah||0)-sistem};
+      if(matches(x)) rows.push(x);
+    });
+    return rows.filter(r=>reportType!=="Selisih"||r.jenis==="Selisih").sort((a,b)=>String(b.tanggal||"").localeCompare(String(a.tanggal||"")));
+  },[data,reportFrom,reportTo,reportType,reportQuery]);
+  const exportReport = () => {
+    const cols=["Tanggal","Jenis","Kode","Nama Barang","Jumlah / Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"];
+    const esc=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+    const lines=[cols,...reportRows.map(r=>[r.tanggal,r.jenis,r.kode,r.nama,r.jumlah,r.satuan,r.stok_sistem??"",r.stok_fisik??"",r.catatan])].map(row=>row.map(esc).join(";"));
+    const blob=new Blob(["\\uFEFF"+lines.join("\\r\\n")],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="DEBOX-PLEBURAN-Laporan-"+today()+".csv";a.click();URL.revokeObjectURL(url);
+  };
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 2800);
@@ -325,7 +347,18 @@ function App() {
             <div className="reconcile-footnote">Stok sistem dihitung sampai dengan {reconcileDate}. Selisih = stok fisik − stok sistem. Data opname hari lain tidak dicampur.</div>
           </div> :
         page === "Laporan" ?
-          <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
+          <div className="report-page">
+            <div className="panel">
+              <div className="panel-heading"><div><h2>Filter & Export Laporan</h2><p>{reportRows.length} baris sesuai filter</p></div><button className="primary export-btn" onClick={exportReport}><FileSpreadsheet size={17}/> Export Excel (CSV)</button></div>
+              <div className="report-filter-grid">
+                <label className="field"><span>Dari tanggal</span><input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
+                <label className="field"><span>Sampai tanggal</span><input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
+                <label className="field"><span>Jenis laporan</span><select value={reportType} onChange={e=>setReportType(e.target.value)}>{["Semua","Barang Masuk","Penjualan","Opname","Selisih","Barang Reject","Stok Awal"].map(x=><option key={x}>{x}</option>)}</select></label>
+                <label className="field"><span>Cari barang / kode / catatan</span><input value={reportQuery} onChange={e=>setReportQuery(e.target.value)}/></label>
+              </div>
+              <div className="report-table-wrap"><table className="reconcile-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kode</th><th>Nama</th><th>Jumlah / Selisih</th><th>Satuan</th><th>Stok Sistem</th><th>Stok Fisik</th></tr></thead><tbody>{reportRows.length?reportRows.map((r,i)=><tr key={r.id||i}><td>{r.tanggal}</td><td>{r.jenis}</td><td>{r.kode}</td><td>{r.nama}</td><td>{fmt(r.jumlah)}</td><td>{r.satuan||"PCS"}</td><td>{r.stok_sistem===undefined?"—":fmt(r.stok_sistem)}</td><td>{r.stok_fisik===undefined?"—":fmt(r.stok_fisik)}</td></tr>):<tr><td colSpan="8" className="empty">Tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
+            </div>
+            <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
         isHistory ?
           <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="filter-chips history-filters">{["Semua","Barang Masuk","Penjualan","Opname","Barang Reject"].map(x=><button key={x} className={historyType===x?"chip active":"chip"} onClick={()=>setHistoryType(x)}>{x}</button>)}</div>
             {Object.entries(historyGroups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,entries])=><div className="history-group" key={date}><h3><CalendarDays size={16}/>{dateLabel(date)}</h3>{entries.map((r,i)=><div className="history-row" key={r.id||i}><div className="history-mark"/><div className="history-copy"><b>{r.nama}</b><small>{r.kode} · {r.jenis?.replaceAll("_"," ") || "Transaksi"} · {r.catatan || "Tanpa catatan"}</small></div><strong className={["Penjualan","Barang_Reject"].includes(r.jenis)?"negative":"positive"}>{["Penjualan","Barang_Reject"].includes(r.jenis)?"−":"+"}{fmt(r.jumlah)}</strong></div>)}</div>)}
