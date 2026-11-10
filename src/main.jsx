@@ -1,37 +1,68 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2, ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, Plus, Search, Menu, X, AlertTriangle, Boxes, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import {
+  LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
+  ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw,
+  Plus, Search, Menu, X, AlertTriangle, Boxes, MoreHorizontal, ChevronDown,
+  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays
+} from "lucide-react";
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
 
 const menus = [
   ["Dashboard", LayoutDashboard], ["Data Barang", Package], ["Stok Awal", Boxes],
-  ["Barang Masuk", ArrowDownToLine], ["Penjualan", ShoppingCart], ["Barang Reject", Trash2],
-  ["Stok Fisik / Opname", ClipboardList], ["Rekap Selisih", ChartNoAxesCombined],
-  ["Riwayat Transaksi", History], ["Laporan", FileBarChart]
+  ["Barang Masuk", ArrowDownToLine], ["Penjualan", ShoppingCart],
+  ["Barang Reject", Trash2], ["Stok Fisik / Opname", ClipboardList],
+  ["Rekap Selisih", ChartNoAxesCombined], ["Riwayat Transaksi", History],
+  ["Laporan", FileBarChart]
 ];
+const primaryMenus = ["Dashboard", "Data Barang", "Barang Masuk", "Penjualan", "Rekap Selisih"];
+const moreMenus = ["Stok Awal", "Barang Reject", "Stok Fisik / Opname", "Riwayat Transaksi", "Laporan"];
 const fmt = n => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(n || 0));
 const today = () => new Date().toLocaleDateString("en-CA");
 const emptyForm = { tanggal: today(), kode: "", nama: "", jumlah: "", kategori: "", catatan: "" };
+const keyByPage = {
+  "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk",
+  "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject",
+  "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas"
+};
+const sheetMap = {
+  "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan",
+  "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname"
+};
+const statusOf = item => item.sistem < 0 ? ["Minus","minus"] :
+  item.sistem === 0 ? ["Habis","empty"] :
+  item.sistem <= Number(item.stok_minimum || 0) ? ["Menipis","low"] : ["Aman","safe"];
+const dateLabel = value => {
+  const d = new Date(value + "T00:00:00");
+  const now = new Date(); now.setHours(0,0,0,0);
+  const yesterday = new Date(now); yesterday.setDate(now.getDate()-1);
+  if (d.getTime() === now.getTime()) return "Hari ini";
+  if (d.getTime() === yesterday.getTime()) return "Kemarin";
+  return d.toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+};
 
 function App() {
   const [page, setPage] = useState("Dashboard"), [data, setData] = useState({}), [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null), [authReady, setAuthReady] = useState(false);
   const [error, setError] = useState(""), [query, setQuery] = useState(""), [modal, setModal] = useState(false);
-  const [form, setForm] = useState(emptyForm), [mobile, setMobile] = useState(false), [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(emptyForm), [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(""), [moreOpen, setMoreOpen] = useState(false);
+  const [filter, setFilter] = useState("Semua"), [toast, setToast] = useState("");
+
   const load = async () => {
     setLoading(true); setError("");
     try { const r = await api("init"); setData(r.data || {}); }
-    catch (e) { setError(e.message); } finally { setLoading(false); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
-  useEffect(() => { getSession().then(setSession).catch(e => setError(e.message)).finally(() => setAuthReady(true)); return watchAuth(setSession); }, []);
+  useEffect(() => {
+    getSession().then(setSession).catch(e => setError(e.message)).finally(() => setAuthReady(true));
+    return watchAuth(setSession);
+  }, []);
   useEffect(() => { if (session) load(); }, [session]);
+
   const items = data.Master_Barang || [];
-  const rows = useMemo(() => {
-    const key = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
-    const source = key ? (data[key] || []) : [];
-    return source.filter(x => JSON.stringify(x).toLowerCase().includes(query.toLowerCase()));
-  }, [data, page, query]);
   const calc = items.map(i => {
     const sum = key => (data[key] || []).filter(x => x.kode === i.kode).reduce((a,x) => a + Number(x.jumlah || 0), 0);
     const awal = sum("Stok_Awal"), masuk = sum("Barang_Masuk"), jual = sum("Penjualan"), reject = sum("Barang_Reject");
@@ -40,59 +71,163 @@ function App() {
     return { ...i, awal, masuk, jual, reject, sistem, fisik: fisik ? Number(fisik.jumlah) : null, selisih: fisik ? Number(fisik.jumlah) - sistem : null };
   });
   const total = key => (data[key] || []).reduce((a,x) => a + Number(x.jumlah || 0), 0);
-  const save = async e => {
-    e.preventDefault(); setSaving(true); setError("");
-    try {
-      const result = await api("create", { sheet: form.sheet, row: { ...form, jumlah: Number(form.jumlah), waktu: new Date().toISOString() } });
-      setModal(false); setForm(emptyForm); await load();
-    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  const rows = useMemo(() => {
+    const source = keyByPage[page] ? (data[keyByPage[page]] || []) : [];
+    return source.filter(x => JSON.stringify(x).toLowerCase().includes(query.toLowerCase()));
+  }, [data, page, query]);
+  const shownStock = useMemo(() => {
+    const q = query.toLowerCase();
+    return calc.filter(x => {
+      const matches = (x.nama + " " + x.kode + " " + (x.kategori || "")).toLowerCase().includes(q);
+      const [label] = statusOf(x);
+      return matches && (filter === "Semua" || label === filter);
+    });
+  }, [calc, query, filter]);
+
+  const openForm = sheet => {
+    setForm({ ...emptyForm, sheet, satuan:"PCS" });
+    setModal(true); setExpanded("");
   };
-  const openForm = sheet => { setForm({ ...emptyForm, sheet }); setModal(true); };
-  const title = page;
+  const save = async e => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true); setError("");
+    try {
+      await api("create", { sheet: form.sheet, row: { ...form, jumlah: Number(form.jumlah), waktu: new Date().toISOString() } });
+      setModal(false); setForm(emptyForm); setToast("Data berhasil disimpan."); await load();
+    } catch (e) { setError(e.message); setToast(e.message); }
+    finally { setSaving(false); }
+  };
+  const changePage = label => {
+    setPage(label); setQuery(""); setFilter("Semua"); setExpanded(""); setMoreOpen(false);
+  };
   const isTxn = ["Stok Awal","Barang Masuk","Penjualan","Barang Reject","Stok Fisik / Opname"].includes(page);
-  const sheetMap = { "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname" };
-  const activeKey = ({ "Data Barang":"Master_Barang", "Stok Awal":"Stok_Awal", "Barang Masuk":"Barang_Masuk", "Penjualan":"Penjualan", "Barang Reject":"Barang_Reject", "Stok Fisik / Opname":"Stok_Opname", "Riwayat Transaksi":"Riwayat_Aktivitas" })[page];
-  const shown = page === "Rekap Selisih" ? calc : rows;
+  const selectedItem = calc.find(x => x.kode === form.kode);
+  const delta = form.jumlah === "" || !selectedItem ? null : Number(form.jumlah) - selectedItem.sistem;
+  const title = page;
+  const isStockPage = page === "Data Barang";
+  const activeKey = keyByPage[page];
+  const isHistory = page === "Riwayat Transaksi";
+  const historyGroups = isHistory ? rows.reduce((acc,row) => {
+    const key = row.tanggal || "Tanpa tanggal"; (acc[key] ||= []).push(row); return acc;
+  }, {}) : {};
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   if (!authReady) return <div className="auth-screen"><div className="auth-card">Memeriksa sesi login...</div></div>;
   if (!session) return <Login />;
+
   return <div className="app">
-    <aside className={mobile ? "sidebar show" : "sidebar"}>
-      <div className="brand"><div className="brandmark">D</div><div><b>DEBOX PLEBURAN</b><small>INVENTORY SYSTEM</small></div><button className="mobile-close" onClick={()=>setMobile(false)}><X size={18}/></button></div>
-      <div className="nav-caption">WORKSPACE</div>
-      <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>{setPage(label);setQuery("");setMobile(false)}}><Icon size={18}/><span>{label}</span>{label==="Barang Reject" && <i className="dot"/>}</button>)}</nav>
-      <div className="sidebar-foot"><span className="live-dot"/> Supabase Database <small>DEBOX · PLEBURAN</small></div>
+    <aside className="sidebar">
+      <div className="brand"><div className="brandmark">D</div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
+      <div className="nav-caption">MENU UTAMA</div>
+      <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>changePage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav>
+      <div className="sidebar-foot"><span className="live-dot"/> Terhubung ke Supabase</div>
     </aside>
-    {mobile && <div className="scrim" onClick={()=>setMobile(false)}/>}
+
     <main className="main">
-      <header className="topbar"><button className="menu-btn" onClick={()=>setMobile(true)}><Menu/></button><div className="crumb">Workspace <span>/</span> <b>{title}</b></div><div className="top-actions"><span className="today">{new Date().toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</span><button className="icon-btn" onClick={load} title="Refresh"><RefreshCw size={17}/></button><div className="avatar">DP</div><button className="secondary logout-btn" onClick={signOut}>Keluar</button></div></header>
-      <section className="content">
-        <div className="page-head"><div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>{title}</h1><p>{page==="Dashboard"?"Pantau pergerakan dan kondisi stok barang secara terpusat.": "Kelola dan pantau data "+title.toLowerCase()+"."}</p></div>
-          <div className="head-actions">{isTxn && <button className="primary" onClick={()=>openForm(sheetMap[page])}><Plus size={17}/> Tambah Data</button>}<button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div>
+      <header className="topbar">
+        <div className="topbar-title"><span className="eyebrow">PT DEBOX PLEBURAN</span><h1>{title}</h1></div>
+        <div className="top-actions">
+          <span className="today">{new Date().toLocaleDateString("id-ID",{weekday:"short",day:"2-digit",month:"short",year:"numeric"})}</span>
+          <button className="icon-btn" onClick={load} aria-label="Muat ulang" title="Muat ulang"><RefreshCw size={18}/></button>
+          <button className="logout-btn" onClick={signOut}><LogOut size={16}/><span>Keluar</span></button>
         </div>
-        {error && <div className="alert"><AlertTriangle size={17}/><span>{error}</span></div>}
-        {loading ? <div className="loading"><span className="spinner"/> Mengambil data dari Supabase...</div> :
-        page==="Dashboard" ? <Dashboard calc={calc} data={data} total={total} setPage={setPage}/> :
-        page==="Rekap Selisih" ? <div className="panel"><div className="panel-top"><div><h3>Rekap stok & selisih</h3><p>Selisih dihitung dari stok fisik opname terakhir.</p></div><input className="search" placeholder="Cari barang..." value={query} onChange={e=>setQuery(e.target.value)}/></div><Table rows={shown} columns={["kode","nama","sistem","fisik","selisih"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",fisik:"Stok Fisik",selisih:"Selisih"}}/></div> :
-        page==="Laporan" ? <div className="grid-two"><div className="panel"><h3>Ringkasan transaksi</h3>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname", (data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row"><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h3>Catatan perhitungan</h3><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
-        <div className="panel"><div className="panel-top"><div><h3>{page}</h3><p>{shown.length} catatan tersimpan</p></div><div className="table-tools"><label className="searchbox"><Search size={16}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label>{page==="Data Barang" && <button className="primary" onClick={()=>openForm("Master_Barang")}><Plus size={16}/> Barang</button>}</div></div>
-          <Table rows={shown} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}} empty="Belum ada data. Tambahkan catatan pertama."/>
-        </div>}
-        <footer>DEBOX PLEBURAN <span>•</span> Inventory Management <span className="foot-right">Data tersinkron melalui Supabase</span></footer>
+      </header>
+
+      <section className="content">
+        {error && <div className="alert" role="alert"><AlertTriangle size={17}/><span>{error}</span><button className="alert-close" onClick={()=>setError("")} aria-label="Tutup pesan"><X size={16}/></button></div>}
+
+        {loading ? <Loading /> : page === "Dashboard" ?
+          <Dashboard calc={calc} data={data} total={total} setPage={changePage}/> :
+        isStockPage ?
+          <section className="stock-page">
+            <div className="summary-strip">
+              <Summary label="Total item" value={fmt(calc.length)} />
+              <Summary label="Total stok" value={fmt(calc.reduce((a,x)=>a+x.sistem,0))} />
+              <Summary label="Nilai persediaan" value="—" note="Harga belum tersedia" />
+              <Summary label="Stok habis" value={fmt(calc.filter(x=>x.sistem<=0).length)} />
+            </div>
+            <div className="list-toolbar">
+              <label className="searchbox"><Search size={18}/><input placeholder="Cari nama atau kode barang..." value={query} onChange={e=>setQuery(e.target.value)}/></label>
+              <div className="filter-chips">{["Semua","Menipis","Habis","Minus"].map(x=><button key={x} className={filter===x?"chip active":"chip"} onClick={()=>setFilter(x)}>{x}</button>)}</div>
+            </div>
+            <div className="stock-cards">{shownStock.length ? shownStock.map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)}/>) : <EmptyState text="Barang tidak ditemukan."/>}</div>
+            <div className="desktop-table"><Table rows={shownStock} columns={["kode","nama","sistem","stok_minimum"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",stok_minimum:"Min. Stok"}}/></div>
+          </section> :
+        page === "Rekap Selisih" ?
+          <div className="panel"><div className="panel-heading"><div><h2>Rekap stok & selisih</h2><p>Selisih dihitung dari stok fisik opname terakhir.</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari barang..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+            <div className="stock-cards">{calc.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(query.toLowerCase())).map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)} showPhysical/>)}</div>
+            <div className="desktop-table"><Table rows={calc} columns={["kode","nama","sistem","fisik","selisih"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",fisik:"Stok Fisik",selisih:"Selisih"}}/></div>
+          </div> :
+        page === "Laporan" ?
+          <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
+        isHistory ?
+          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari riwayat..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+            {Object.entries(historyGroups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,entries])=><div className="history-group" key={date}><h3><CalendarDays size={16}/>{dateLabel(date)}</h3>{entries.map((r,i)=><div className="history-row" key={r.id||i}><div className="history-mark"/><div className="history-copy"><b>{r.nama}</b><small>{r.kode} · {r.jenis?.replaceAll("_"," ") || "Transaksi"} · {r.catatan || "Tanpa catatan"}</small></div><strong className={["Penjualan","Barang_Reject"].includes(r.jenis)?"negative":"positive"}>{["Penjualan","Barang_Reject"].includes(r.jenis)?"−":"+"}{fmt(r.jumlah)}</strong></div>)}</div>)}
+            {!rows.length && <EmptyState text="Belum ada riwayat transaksi."/>}
+          </div> :
+          <div className="panel">
+            <div className="panel-heading"><div><h2>{page}</h2><p>{rows.length} catatan tersimpan</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+            <div className="mobile-records">{rows.length ? rows.map((r,i)=><RecordCard key={r.id||r.kode||i} row={r} page={page}/>) : <EmptyState text="Belum ada data. Ketuk + untuk menambah."/>}</div>
+            <div className="desktop-table"><Table rows={rows} columns={page==="Data Barang"?["kode","nama","kategori","satuan","stok_minimum"]:["tanggal","kode","nama","jumlah","kategori","catatan"]} labels={{kode:"Kode",nama:"Nama Barang",tanggal:"Tanggal",jumlah:"Jumlah",kategori:"Kategori / Alasan",satuan:"Satuan",stok_minimum:"Min. Stok",catatan:"Catatan"}}/></div>
+          </div>}
+
+        <footer>DEBOX PLEBURAN <span>·</span> Inventory Management</footer>
       </section>
     </main>
-    {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}><form className="modal" onSubmit={save}><div className="modal-head"><div><small>INPUT DATA</small><h2>{form.sheet==="Master_Barang"?"Tambah Barang": "Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)}><X/></button></div>
-      {form.sheet==="Master_Barang" ? <><Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required/><Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/><Field label="Kategori" value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/><Field label="Satuan" value={form.satuan||"PCS"} onChange={v=>setForm({...form,satuan:v})}/><Field label="Stok Minimum" type="number" value={form.stok_minimum||0} onChange={v=>setForm({...form,stok_minimum:v})}/></> :
-      <><Field label="Tanggal" type="date" value={form.tanggal} onChange={v=>setForm({...form,tanggal:v})} required/><label className="field"><span>Barang</span><select required value={form.kode} onChange={e=>{const i=items.find(x=>x.kode===e.target.value);setForm({...form,kode:e.target.value,nama:i?.nama||""})}}><option value="">Pilih barang...</option>{items.map(i=><option value={i.kode}>{i.kode} — {i.nama}</option>)}</select></label><Field label="Jumlah" type="number" value={form.jumlah} onChange={v=>setForm({...form,jumlah:v})} required/><Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/><Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/></>}
-      <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":"Simpan Data"}</button></div></form></div>}
+
+    {isTxn || isStockPage ? <button className="fab" onClick={()=>openForm(isStockPage?"Master_Barang":sheetMap[page])} aria-label="Tambah data"><Plus size={24}/></button> : null}
+
+    <nav className="bottom-nav" aria-label="Navigasi utama">
+      {primaryMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} className={page===label?"bottom-item active":"bottom-item"} onClick={()=>changePage(label)}><Icon size={20}/><span>{label==="Rekap Selisih"?"Selisih":label==="Data Barang"?"Barang":label==="Barang Masuk"?"Masuk":label}</span></button>;})}
+      <button className={moreMenus.includes(page)||moreOpen?"bottom-item active":"bottom-item"} onClick={()=>setMoreOpen(!moreOpen)}><MoreHorizontal size={20}/><span>Lainnya</span></button>
+    </nav>
+    {moreOpen && <><button className="more-scrim" aria-label="Tutup menu" onClick={()=>setMoreOpen(false)}/><div className="more-sheet">{moreMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} onClick={()=>changePage(label)}><Icon size={19}/>{label}</button>;})}</div></>}
+
+    {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
+      <form className="modal" onSubmit={save}>
+        <div className="modal-head"><div><small>INPUT DATA</small><h2>{form.sheet==="Master_Barang"?"Tambah Barang":"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
+        {form.sheet==="Master_Barang" ? <>
+          <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required/>
+          <Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/>
+          <Field label="Kategori" value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
+          <Field label="Satuan" value={form.satuan||"PCS"} onChange={v=>setForm({...form,satuan:v})}/>
+          <Field label="Stok Minimum" type="number" value={form.stok_minimum||0} onChange={v=>setForm({...form,stok_minimum:v})}/>
+        </> : <>
+          <Field label="Tanggal" type="date" value={form.tanggal} onChange={v=>setForm({...form,tanggal:v})} required/>
+          <ItemPicker items={calc} value={form.kode} onChange={item=>setForm({...form,kode:item.kode,nama:item.nama})}/>
+          {selectedItem && <div className="current-stock"><span>Stok sistem saat ini</span><b>{fmt(selectedItem.sistem)} {selectedItem.satuan||""}</b></div>}
+          <div className="qty-field"><span>{form.sheet==="Stok_Opname"?"Stok fisik":"Jumlah"}</span><Stepper value={form.jumlah} onChange={v=>setForm({...form,jumlah:v})}/></div>
+          {form.sheet==="Stok_Opname" && delta!==null && <div className={"delta-box "+(delta>0?"positive-bg":delta<0?"negative-bg":"neutral-bg")}><small>Selisih real-time</small><strong>{delta>0?"+":""}{fmt(delta)}</strong><span>{delta>0?"Lebih dari stok sistem":delta<0?"Kurang dari stok sistem":"Sesuai stok sistem"}</span></div>}
+          <Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
+          <Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/>
+        </>}
+        <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":"Simpan Data"}</button></div>
+      </form>
+    </div>}
+    {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
   </div>;
 }
+
 function Login(){
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const submit=async e=>{e.preventDefault();setBusy(true);setError("");try{await signIn(email.trim(),password);}catch(err){setError(err.message||"Login gagal.");}finally{setBusy(false);}};
  return <div className="auth-screen"><form className="auth-card" onSubmit={submit}><div className="brandmark auth-mark">D</div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>Inventory Login</h1><p>Masuk untuk mengelola data persediaan.</p>{error&&<div className="alert">{error}</div>}<label className="field"><span>Email</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label className="field"><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label><button className="primary auth-submit" disabled={busy}>{busy?"Memproses...":"Masuk"}</button><small>Akun dibuat administrator melalui Supabase Dashboard.</small></form></div>;
 }
-function Field({label,value,onChange,type="text",required=false}){return <label className="field"><span>{label}</span><input type={type} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
-function Table({rows,columns,labels={},empty="Tidak ada data."}){return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th>{labels[c]||c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i}>{columns.map(c=><td>{c==="selisih"&&r[c]!=null?<span className={Number(r[c])<0?"negative":Number(r[c])>0?"positive":"neutral"}>{Number(r[c])>0?"+":""}{fmt(r[c])}</span>:r[c]??"—"}</td>)}</tr>):<tr><td className="empty" colSpan={columns.length}>{empty}</td></tr>}</tbody></table></div>}
-function Dashboard({calc,data,total,setPage}){const low=calc.filter(x=>x.sistem<=Number(x.stok_minimum||0));return <><div className="stats"><Stat label="Total Jenis Barang" value={calc.length} icon={Package} hint="SKU terdaftar"/><Stat label="Total Barang Masuk" value={fmt(total("Barang_Masuk"))} icon={ArrowDownToLine} hint="Akumulasi jumlah"/><Stat label="Total Penjualan" value={fmt(total("Penjualan"))} icon={ShoppingCart} hint="Akumulasi jumlah"/><Stat label="Barang Reject" value={fmt(total("Barang_Reject"))} icon={Trash2} hint="Akumulasi jumlah"/></div><div className="dashboard-grid"><div className="panel"><div className="panel-top"><div><h3>Ringkasan stok</h3><p>Perhitungan stok sistem saat ini</p></div><button className="text-btn" onClick={()=>setPage("Rekap Selisih")}>Lihat rekap <ArrowUpRight size={15}/></button></div><Table rows={calc.slice(0,7)} columns={["kode","nama","sistem","stok_minimum"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",stok_minimum:"Min. Stok"}} empty="Belum ada master barang."/></div><div className="panel side-panel"><div className="panel-top"><div><h3>Perlu perhatian</h3><p>Stok menyentuh batas minimum</p></div><span className="count">{low.length}</span></div>{low.length?low.slice(0,6).map(i=><div className="low-item"><div className="low-icon"><AlertTriangle size={16}/></div><div><b>{i.nama}</b><small>{i.kode}</small></div><strong>{fmt(i.sistem)}</strong></div>):<div className="all-good">Semua stok di atas batas minimum.</div>}<button className="wide-btn" onClick={()=>setPage("Data Barang")}>Kelola data barang</button></div></div></>}
-function Stat({label,value,icon:Icon,hint}){return <div className="stat"><div className="stat-top"><span>{label}</span><div className="stat-icon"><Icon size={18}/></div></div><strong>{value}</strong><small>{hint}</small></div>}
+function Field({label,value,onChange,type="text",required=false}){return <label className="field"><span>{label}</span><input type={type} inputMode={type==="number"?"decimal":undefined} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
+function Stepper({value,onChange}){const n=Number(value||0);return <div className="stepper"><button type="button" onClick={()=>onChange(String(Math.max(0,n-1)))} aria-label="Kurangi jumlah">−</button><input type="number" inputMode="decimal" min="0" step="any" value={value} onChange={e=>onChange(e.target.value)} required/><button type="button" onClick={()=>onChange(String(n+1))} aria-label="Tambah jumlah">+</button></div>}
+function ItemPicker({items,value,onChange}){const [q,setQ]=useState("");const [open,setOpen]=useState(false);const selected=items.find(x=>x.kode===value);const results=items.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(q.toLowerCase())).slice(0,8);return <div className="picker"><label className="field"><span>Pilih barang</span><div className="picker-input"><Search size={17}/><input value={open?q:(selected?selected.nama+" · "+selected.kode:q)} onFocus={()=>{setOpen(true);setQ("");}} onChange={e=>setQ(e.target.value)} placeholder="Cari nama atau kode barang..." required={!value}/>{selected&&<button type="button" onClick={()=>{onChange({kode:"",nama:""});setQ("");setOpen(false);}} aria-label="Hapus pilihan"><X size={16}/></button>}</div></label>{open&&<div className="picker-results">{results.map(x=><button type="button" key={x.kode} onClick={()=>{onChange(x);setQ("");setOpen(false);}}><b>{x.nama}</b><small>{x.kode} · Stok {fmt(x.sistem)}</small></button>)}{!results.length&&<p>Barang tidak ditemukan.</p>}<button type="button" className="picker-close" onClick={()=>setOpen(false)}>Tutup daftar</button></div>}</div>}
+function Summary({label,value,note}){return <div className="summary-card"><small>{label}</small><b>{value}</b>{note&&<span>{note}</span>}</div>}
+function StockCard({item,expanded,onToggle,showPhysical=false}){const [label,kind]=statusOf(item);return <article className="stock-card"><button className="stock-card-main" onClick={onToggle} aria-expanded={expanded}><span className="stock-copy"><b>{item.nama}</b><small>{item.kode}{item.kategori?" · "+item.kategori:""}</small></span><span className="stock-value"><strong>{fmt(item.sistem)}</strong><small>{item.satuan||"unit"}</small></span><span className={"badge "+kind}>{label}</span><span className="expand-icon">{expanded?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</span></button>{expanded&&<div className="stock-details"><Detail label="Stok awal" value={item.awal}/><Detail label="Masuk" value={item.masuk}/><Detail label="Terjual" value={item.jual}/><Detail label="Reject" value={item.reject}/><Detail label="Stok fisik" value={item.fisik??"—"}/><Detail label="Selisih" value={item.selisih??"—"} tone={item.selisih>0?"positive":item.selisih<0?"negative":""}/></div>}</article>}
+function Detail({label,value,tone=""}){return <div className="detail"><small>{label}</small><b className={tone}>{typeof value==="number"?fmt(value):value}</b></div>}
+function RecordCard({row,page}){return <article className="record-card"><div><b>{row.nama||row.kode}</b><small>{row.kode}{row.kategori?" · "+row.kategori:""}</small></div><strong>{row.jumlah!==undefined?fmt(row.jumlah):row.stok_minimum!==undefined?"Min. "+fmt(row.stok_minimum):"—"}</strong><small className="record-date">{row.tanggal||row.satuan||""}</small></article>}
+function Table({rows,columns,labels={}}){return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c}>{labels[c]||c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||r.kode||i}>{columns.map(c=><td key={c}>{c==="selisih"&&r[c]!=null?<span className={Number(r[c])<0?"negative":Number(r[c])>0?"positive":"neutral"}>{Number(r[c])>0?"+":""}{fmt(r[c])}</span>:r[c]??"—"}</td>)}</tr>):<tr><td className="empty" colSpan={columns.length}>Belum ada data.</td></tr>}</tbody></table></div>}
+function EmptyState({text}){return <div className="empty-state"><Package size={25}/><b>{text}</b></div>}
+function Loading(){return <div className="loading-list">{[1,2,3,4].map(x=><div className="skeleton" key={x}/>)}</div>}
+function Dashboard({calc,data,total,setPage}){const low=calc.filter(x=>x.sistem<=Number(x.stok_minimum||0));return <><div className="dashboard-summary"><Summary label="Jenis barang" value={fmt(calc.length)}/><Summary label="Barang masuk" value={fmt(total("Barang_Masuk"))}/><Summary label="Penjualan" value={fmt(total("Penjualan"))}/><Summary label="Barang reject" value={fmt(total("Barang_Reject"))}/></div><div className="dashboard-grid"><div className="panel"><div className="panel-heading"><div><h2>Ringkasan stok</h2><p>Posisi stok sistem saat ini</p></div><button className="text-link" onClick={()=>setPage("Data Barang")}>Lihat semua <ArrowUpRight size={16}/></button></div><div className="mobile-records">{calc.slice(0,7).map(item=><StockCard key={item.kode} item={item} expanded={false} onToggle={()=>setPage("Data Barang")}/>)}</div><div className="desktop-table"><Table rows={calc.slice(0,7)} columns={["kode","nama","sistem","stok_minimum"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",stok_minimum:"Min. Stok"}}/></div></div><div className="panel side-panel"><div className="panel-heading"><div><h2>Perlu perhatian</h2><p>Stok menyentuh batas minimum</p></div><span className="count">{low.length}</span></div>{low.length?low.slice(0,6).map(i=><div className="low-item" key={i.kode}><div><b>{i.nama}</b><small>{i.kode}</small></div><strong>{fmt(i.sistem)}</strong></div>):<div className="all-good">Semua stok di atas batas minimum.</div>}<button className="wide-btn" onClick={()=>setPage("Data Barang")}>Kelola data barang</button></div></div></>}
 createRoot(document.getElementById("root")).render(<App/>);
