@@ -1,31 +1,42 @@
-# Setup Google Sheets + Vercel
+# Setup DEBOX PLEBURAN — Supabase + Vercel (bisa dari HP)
 
-## 1. Siapkan database
-1. Buat Google Spreadsheet baru di Google Drive.
-2. Buka **Extensions → Apps Script**.
-3. Ganti isi `Code.gs` dengan file `apps-script/Code.gs` dari repository ini.
-4. Pilih fungsi `setup`, lalu klik **Run** dan berikan izin yang diminta. Fungsi ini membuat tab: Master_Barang, Stok_Awal, Barang_Masuk, Penjualan, Barang_Reject, Stok_Opname, dan Riwayat_Aktivitas.
-5. Di Apps Script pilih **Deploy → New deployment → Web app**.
-6. Execute as: **Me**. Who has access: **Anyone**. Deploy, lalu salin URL berakhiran `/exec`.
+## A. Buat database Supabase
+1. Buka https://supabase.com/dashboard melalui Chrome Android, login, lalu tekan **New project**.
+2. Isi nama proyek, password database (simpan sendiri), dan pilih region terdekat yang tersedia.
+3. Tunggu proyek selesai dibuat.
+4. Buka **SQL Editor → New query**.
+5. Di GitHub buka file `supabase/schema.sql` pada repository ini. Salin seluruh isinya.
+6. Kembali ke SQL Editor, tempel SQL tersebut, lalu tekan **Run**. Ini membuat tabel inventaris dan mengaktifkan RLS.
 
-> Catatan keamanan: endpoint web app publik ini tidak memiliki autentikasi. Siapa pun yang memperoleh URL dapat membaca/menambahkan data. Gunakan hanya untuk data operasional non-rahasia; jangan masukkan data pribadi atau sensitif. Untuk produksi multi-user, tambahkan autentikasi dan validasi akses sebelum digunakan.
+## B. Buat akun administrator
+1. Di Supabase buka **Authentication → Users → Add user → Create new user**.
+2. Masukkan email dan password login aplikasi. Simpan password dengan aman.
+3. Pastikan pendaftaran publik (Allow new users to sign up) dinonaktifkan pada Authentication Settings.
+4. Akun tambahan hanya dibuat administrator dari halaman Users.
 
-## 2. Deploy frontend ke Vercel
-1. Import repository `teneobot-lab/debox-pleburan-inventory` ke Vercel.
-2. Framework preset: **Vite**. Build command: `npm run build`. Output directory: `dist`.
-3. Tambahkan Environment Variable:
-   - Name: `VITE_APPS_SCRIPT_URL`
-   - Value: URL Web App Apps Script yang berakhiran `/exec`
-4. Deploy. Jika URL Apps Script berubah, perbarui environment variable dan lakukan redeploy.
+## C. Ambil URL dan publishable key
+1. Buka **Project Settings → API Keys** atau tombol **Connect**.
+2. Salin **Project URL**.
+3. Salin **Publishable key** (pada proyek lama mungkin bernama anon key).
+4. Jangan gunakan **service_role** atau **secret key** di frontend.
 
-## 3. Alur stok
+## D. Hubungkan ke Vercel
+1. Buka https://vercel.com/dashboard dan import repository `teneobot-lab/debox-pleburan-inventory`.
+2. Framework: **Vite**; Build command: `npm run build`; Output directory: `dist`.
+3. Pada **Settings → Environment Variables**, tambahkan:
+   - `VITE_SUPABASE_URL` = Project URL.
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` = Publishable key.
+4. Simpan, lalu lakukan **Redeploy**.
+5. Buka domain Vercel dan login dengan akun administrator dari langkah B.
+
+## E. Cara kerja stok
 - Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.
 - Selisih = Stok Fisik − Stok Sistem.
-- Opname disimpan sebagai catatan per tanggal; data tanggal sebelumnya tidak ditimpa.
+- Opname disimpan per tanggal; catatan lama tidak ditimpa.
 - Selisih tidak mengubah stok sistem otomatis.
 
-## 4. Verifikasi
-- Buka aplikasi dan tekan Refresh.
-- Tambahkan master barang terlebih dahulu.
-- Input Stok Awal, Barang Masuk, Penjualan, Reject, dan Stok Fisik sesuai kebutuhan.
-- Rekap Selisih mengambil opname terakhir per barang.
+## Catatan
+- Semua setup bisa dilakukan lewat browser HP; Google Apps Script tidak diperlukan.
+- Publishable key boleh digunakan di frontend karena akses data dibatasi oleh RLS dan sesi login.
+- Jangan pernah membagikan password database, password akun, atau service role/secret key.
+- Versi awal ini belum memiliki fitur edit/hapus, ekspor laporan, dan transaksi atomik. Uji data terlebih dahulu sebelum operasional utama.
