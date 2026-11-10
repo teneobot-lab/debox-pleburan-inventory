@@ -53,6 +53,11 @@ function App() {
   const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
   const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
   const [expandedTransactionDate, setExpandedTransactionDate] = useState("");
+  const [historyType, setHistoryType] = useState("Semua");
+  const [reportFrom, setReportFrom] = useState("");
+  const [reportTo, setReportTo] = useState("");
+  const [reportType, setReportType] = useState("Semua");
+  const [reportQuery, setReportQuery] = useState("");
   const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
@@ -175,7 +180,8 @@ function App() {
   const isStockPage = page === "Data Barang";
   const activeKey = keyByPage[page];
   const isHistory = page === "Riwayat Transaksi";
-  const historyGroups = isHistory ? rows.reduce((acc,row) => {
+  const historyRows = (data.Riwayat_Aktivitas || []).filter(r=>(historyType==="Semua" || String(r.jenis||"").replaceAll("_"," ").toLowerCase().includes(historyType.toLowerCase())) && JSON.stringify(r).toLowerCase().includes(query.toLowerCase()));
+  const historyGroups = isHistory ? historyRows.reduce((acc,row) => {
     const key = row.tanggal || "Tanpa tanggal"; (acc[key] ||= []).push(row); return acc;
   }, {}) : {};
   const transactionGroups = isTxn ? rows.reduce((acc,row) => {
@@ -321,9 +327,9 @@ function App() {
         page === "Laporan" ?
           <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
         isHistory ?
-          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div><div className="filter-chips history-filters">{["Semua","Barang Masuk","Penjualan","Opname","Barang Reject"].map(x=><button key={x} className={historyType===x?"chip active":"chip"} onClick={()=>setHistoryType(x)}>{x}</button>)}</div>
             {Object.entries(historyGroups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,entries])=><div className="history-group" key={date}><h3><CalendarDays size={16}/>{dateLabel(date)}</h3>{entries.map((r,i)=><div className="history-row" key={r.id||i}><div className="history-mark"/><div className="history-copy"><b>{r.nama}</b><small>{r.kode} · {r.jenis?.replaceAll("_"," ") || "Transaksi"} · {r.catatan || "Tanpa catatan"}</small></div><strong className={["Penjualan","Barang_Reject"].includes(r.jenis)?"negative":"positive"}>{["Penjualan","Barang_Reject"].includes(r.jenis)?"−":"+"}{fmt(r.jumlah)}</strong></div>)}</div>)}
-            {!rows.length && <EmptyState text="Belum ada riwayat transaksi."/>}
+            {!historyRows.length && <EmptyState text="Belum ada riwayat transaksi untuk filter ini."/>}
           </div> :
           <div className="panel">
             <div className="panel-heading"><div><h2>{page}</h2><p>{isTxn ? sortedTransactionGroups.length+" kelompok tanggal · "+rows.length+" item tersimpan" : rows.length+" catatan tersimpan"}</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
