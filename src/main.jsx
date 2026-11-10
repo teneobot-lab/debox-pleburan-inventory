@@ -378,7 +378,7 @@ function App() {
         page === "Laporan" ?
           <div className="report-page">
             <div className="panel">
-              <div className="panel-heading"><div><h2>Filter & Export Laporan</h2><p>{reportRows.length} baris sesuai filter</p></div><button className="primary export-btn" onClick={exportReport}><FileSpreadsheet size={17}/> Export Excel (CSV)</button></div>
+              <div className="panel-heading"><div><h2>Filter & Export Laporan</h2><p>{reportRows.length} baris sesuai filter</p></div><button className="primary export-btn" onClick={exportReport}><FileSpreadsheet size={17}/> Export Excel (.xlsx)</button></div>
               <div className="report-filter-grid">
                 <label className="field"><span>Dari tanggal</span><input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
                 <label className="field"><span>Sampai tanggal</span><input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
