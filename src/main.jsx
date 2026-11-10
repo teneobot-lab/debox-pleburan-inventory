@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
-  ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw,
+  ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, FileSpreadsheet,
   Plus, Search, Menu, X, AlertTriangle, Boxes, MoreHorizontal, ChevronDown,
   ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays
 } from "lucide-react";
@@ -16,8 +16,8 @@ const menus = [
   ["Rekap Selisih", ChartNoAxesCombined], ["Riwayat Transaksi", History],
   ["Laporan", FileBarChart]
 ];
-const primaryMenus = ["Dashboard", "Data Barang", "Barang Masuk", "Penjualan", "Rekap Selisih"];
-const moreMenus = ["Stok Awal", "Barang Reject", "Stok Fisik / Opname", "Riwayat Transaksi", "Laporan"];
+const primaryMenus = ["Dashboard", "Data Barang", "Barang Masuk", "Penjualan", "Stok Fisik / Opname"];
+const moreMenus = ["Stok Awal", "Barang Reject", "Riwayat Transaksi", "Rekap Selisih", "Laporan"];
 const fmt = n => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(n || 0));
 const today = () => new Date().toLocaleDateString("en-CA");
 const emptyForm = { tanggal: today(), kode: "", nama: "", jumlah: "", kategori: "", catatan: "" };
@@ -227,7 +227,7 @@ function App() {
 
   return <div className="app">
     <aside className="sidebar">
-      <div className="brand"><div className="brandmark">D</div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
+      <div className="brand"><div className="brandmark logo-slot"><img src="/logo-debox.png" alt="DEBOX PLEBURAN" onError={e=>{e.currentTarget.style.display="none";}}/><span>D</span></div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
       <div className="nav-caption">MENU UTAMA</div>
       <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>changePage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-foot"><span className="live-dot"/> Terhubung ke Supabase</div>
@@ -253,7 +253,7 @@ function App() {
               value={quickAddQuery}
               onFocus={()=>setQuickAddOpen(true)}
               onChange={e=>{setQuickAddQuery(e.target.value);setQuickAddOpen(true);setCartItem(null);}}
-              placeholder="Cari nama atau kode barang..."
+             
               aria-label="Cari barang"
             />{quickAddQuery && <button type="button" className="quick-add-clear" onClick={()=>{setQuickAddQuery("");setQuickAddOpen(false);}} aria-label="Hapus pencarian"><X size={17}/></button>}</label>
             {quickAddOpen && quickAddQuery.trim() && <div className="quick-add-results">
@@ -261,7 +261,7 @@ function App() {
                 <span><b>{item.nama}</b><small>{item.kode} · Stok {fmt(calc.find(x=>x.kode===item.kode)?.sistem ?? 0)} {item.satuan||"PCS"}</small></span><Plus size={18}/>
               </button>) : <p>Barang tidak ditemukan.</p>}
             </div>}
-            {cartItem && <div className="cart-qty-row"><div><b>{cartItem.nama}</b><small>{cartItem.kode} · {cartItem.satuan||"PCS"}</small></div><input type="number" min="0.01" step="any" inputMode="decimal" autoFocus placeholder="Qty" value={cartQty} onChange={e=>setCartQty(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCartItem();}}}/><button type="button" className="primary cart-add-btn" onClick={addCartItem}><Plus size={17}/> Tambah</button></div>}
+            {cartItem && <div className="cart-qty-row"><div><b>{cartItem.nama}</b><small>{cartItem.kode} · {cartItem.satuan||"PCS"}</small></div><input type="number" min="0.01" step="any" inputMode="decimal" autoFocus value={cartQty} onChange={e=>setCartQty(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCartItem();}}}/><button type="button" className="primary cart-add-btn" onClick={addCartItem}><Plus size={17}/> Tambah</button></div>}
           </div>
           <div className="cart-panel">
             <div className="cart-panel-head"><div><h2>Keranjang input</h2><small>{cart.length} baris item · {dateLabel(cartDate)}</small></div><span className="cart-count">{cart.length}</span></div>
@@ -279,7 +279,7 @@ function App() {
               <Summary label="Stok habis" value={fmt(calc.filter(x=>x.sistem<=0).length)} />
             </div>
             <div className="list-toolbar">
-              <label className="searchbox"><Search size={18}/><input placeholder="Cari nama atau kode barang..." value={query} onChange={e=>setQuery(e.target.value)}/></label>
+              <label className="searchbox"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label>
               <div className="filter-chips">{["Semua","Menipis","Habis","Minus"].map(x=><button key={x} className={filter===x?"chip active":"chip"} onClick={()=>setFilter(x)}>{x}</button>)}</div>
             </div>
             <div className="stock-cards">{shownStock.length ? shownStock.map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)}/>) : <EmptyState text="Barang tidak ditemukan."/>}</div>
@@ -298,7 +298,7 @@ function App() {
               <Summary label="Belum opname" value={fmt(reconcileRows.filter(x=>x.fisik===null).length)}/>
             </div>
             <div className="reconcile-toolbar">
-              <label className="searchbox"><Search size={18}/><input placeholder="Cari nama barang atau kode..." value={query} onChange={e=>setQuery(e.target.value)}/></label>
+              <label className="searchbox"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label>
               <div className="filter-chips">{["Semua","Minus","Surplus","Sesuai","Belum Opname"].map(x=><button key={x} className={reconcileFilter===x?"chip active":"chip"} onClick={()=>setReconcileFilter(x)}>{x}</button>)}</div>
             </div>
             <div className="reconcile-table-wrap">
@@ -321,12 +321,12 @@ function App() {
         page === "Laporan" ?
           <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div> :
         isHistory ?
-          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari riwayat..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+          <div className="panel"><div className="panel-heading"><div><h2>Riwayat transaksi</h2><p>{rows.length} aktivitas tercatat</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
             {Object.entries(historyGroups).sort((a,b)=>b[0].localeCompare(a[0])).map(([date,entries])=><div className="history-group" key={date}><h3><CalendarDays size={16}/>{dateLabel(date)}</h3>{entries.map((r,i)=><div className="history-row" key={r.id||i}><div className="history-mark"/><div className="history-copy"><b>{r.nama}</b><small>{r.kode} · {r.jenis?.replaceAll("_"," ") || "Transaksi"} · {r.catatan || "Tanpa catatan"}</small></div><strong className={["Penjualan","Barang_Reject"].includes(r.jenis)?"negative":"positive"}>{["Penjualan","Barang_Reject"].includes(r.jenis)?"−":"+"}{fmt(r.jumlah)}</strong></div>)}</div>)}
             {!rows.length && <EmptyState text="Belum ada riwayat transaksi."/>}
           </div> :
           <div className="panel">
-            <div className="panel-heading"><div><h2>{page}</h2><p>{isTxn ? sortedTransactionGroups.length+" kelompok tanggal · "+rows.length+" item tersimpan" : rows.length+" catatan tersimpan"}</p></div><label className="searchbox compact"><Search size={17}/><input placeholder="Cari data..." value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
+            <div className="panel-heading"><div><h2>{page}</h2><p>{isTxn ? sortedTransactionGroups.length+" kelompok tanggal · "+rows.length+" item tersimpan" : rows.length+" catatan tersimpan"}</p></div><label className="searchbox compact"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label></div>
             {isTxn ? <div className="date-transaction-groups">{sortedTransactionGroups.length ? sortedTransactionGroups.map(([date,entries])=>{
               const opened=expandedTransactionDate===date;
               const quantity=entries.reduce((sum,row)=>sum+Number(row.jumlah||0),0);
@@ -353,7 +353,7 @@ function App() {
     {isStockPage ? <button className="fab" onClick={()=>openForm("Master_Barang")} aria-label="Tambah barang"><Plus size={24}/></button> : null}
 
     <nav className="bottom-nav" aria-label="Navigasi utama">
-      {primaryMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} className={page===label?"bottom-item active":"bottom-item"} onClick={()=>changePage(label)}><Icon size={20}/><span>{label==="Rekap Selisih"?"Selisih":label==="Data Barang"?"Barang":label==="Barang Masuk"?"Masuk":label}</span></button>;})}
+      {primaryMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} className={page===label?"bottom-item active":"bottom-item"} onClick={()=>changePage(label)}><Icon size={20}/><span>{label==="Stok Fisik / Opname"?"Opname":label==="Data Barang"?"Barang":label==="Barang Masuk"?"Masuk":label}</span></button>;})}
       <button className={moreMenus.includes(page)||moreOpen?"bottom-item active":"bottom-item"} onClick={()=>setMoreOpen(!moreOpen)}><MoreHorizontal size={20}/><span>Lainnya</span></button>
     </nav>
     {moreOpen && <><button className="more-scrim" aria-label="Tutup menu" onClick={()=>setMoreOpen(false)}/><div className="more-sheet">{moreMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} onClick={()=>changePage(label)}><Icon size={19}/>{label}</button>;})}</div></>}
@@ -390,7 +390,7 @@ function Login(){
 }
 function Field({label,value,onChange,type="text",required=false}){return <label className="field"><span>{label}</span><input type={type} inputMode={type==="number"?"decimal":undefined} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
 function Stepper({value,onChange}){const n=Number(value||0);return <div className="stepper"><button type="button" onClick={()=>onChange(String(Math.max(0,n-1)))} aria-label="Kurangi jumlah">−</button><input type="number" inputMode="decimal" min="0" step="any" value={value} onChange={e=>onChange(e.target.value)} required/><button type="button" onClick={()=>onChange(String(n+1))} aria-label="Tambah jumlah">+</button></div>}
-function ItemPicker({items,value,onChange}){const [q,setQ]=useState("");const [open,setOpen]=useState(false);const selected=items.find(x=>x.kode===value);const results=items.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(q.toLowerCase())).slice(0,8);return <div className="picker"><label className="field"><span>Pilih barang</span><div className="picker-input"><Search size={17}/><input value={open?q:(selected?selected.nama+" · "+selected.kode:q)} onFocus={()=>{setOpen(true);setQ("");}} onChange={e=>setQ(e.target.value)} placeholder="Cari nama atau kode barang..." required={!value}/>{selected&&<button type="button" onClick={()=>{onChange({kode:"",nama:""});setQ("");setOpen(false);}} aria-label="Hapus pilihan"><X size={16}/></button>}</div></label>{open&&<div className="picker-results">{results.map(x=><button type="button" key={x.kode} onClick={()=>{onChange(x);setQ("");setOpen(false);}}><b>{x.nama}</b><small>{x.kode} · Stok {fmt(x.sistem)}</small></button>)}{!results.length&&<p>Barang tidak ditemukan.</p>}<button type="button" className="picker-close" onClick={()=>setOpen(false)}>Tutup daftar</button></div>}</div>}
+function ItemPicker({items,value,onChange}){const [q,setQ]=useState("");const [open,setOpen]=useState(false);const selected=items.find(x=>x.kode===value);const results=items.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(q.toLowerCase())).slice(0,8);return <div className="picker"><label className="field"><span>Pilih barang</span><div className="picker-input"><Search size={17}/><input value={open?q:(selected?selected.nama+" · "+selected.kode:q)} onFocus={()=>{setOpen(true);setQ("");}} onChange={e=>setQ(e.target.value)} required={!value}/>{selected&&<button type="button" onClick={()=>{onChange({kode:"",nama:""});setQ("");setOpen(false);}} aria-label="Hapus pilihan"><X size={16}/></button>}</div></label>{open&&<div className="picker-results">{results.map(x=><button type="button" key={x.kode} onClick={()=>{onChange(x);setQ("");setOpen(false);}}><b>{x.nama}</b><small>{x.kode} · Stok {fmt(x.sistem)}</small></button>)}{!results.length&&<p>Barang tidak ditemukan.</p>}<button type="button" className="picker-close" onClick={()=>setOpen(false)}>Tutup daftar</button></div>}</div>}
 function Summary({label,value,note}){return <div className="summary-card"><small>{label}</small><b>{value}</b>{note&&<span>{note}</span>}</div>}
 function StockCard({item,expanded,onToggle,showPhysical=false}){const [label,kind]=statusOf(item);return <article className="stock-card"><button className="stock-card-main" onClick={onToggle} aria-expanded={expanded}><span className="stock-copy"><b>{item.nama}</b><small>{item.kode}{item.kategori?" · "+item.kategori:""}</small></span><span className="stock-value"><strong>{fmt(item.sistem)}</strong><small>{item.satuan||"unit"}</small></span><span className={"badge "+kind}>{label}</span><span className="expand-icon">{expanded?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</span></button>{expanded&&<div className="stock-details"><Detail label="Stok awal" value={item.awal}/><Detail label="Masuk" value={item.masuk}/><Detail label="Terjual" value={item.jual}/><Detail label="Reject" value={item.reject}/><Detail label="Stok fisik" value={item.fisik??"—"}/><Detail label="Selisih" value={item.selisih??"—"} tone={item.selisih>0?"positive":item.selisih<0?"negative":""}/></div>}</article>}
 function Detail({label,value,tone=""}){return <div className="detail"><small>{label}</small><b className={tone}>{typeof value==="number"?fmt(value):value}</b></div>}
