@@ -132,6 +132,38 @@ function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      const height = viewport ? viewport.height : window.innerHeight;
+      const top = viewport ? viewport.offsetTop : 0;
+      document.documentElement.style.setProperty("--visible-vh", height + "px");
+      document.documentElement.style.setProperty("--visible-top", top + "px");
+      document.body.classList.toggle("keyboard-open", Boolean(viewport && window.innerHeight - viewport.height > 140));
+    };
+    updateViewport();
+    if (viewport) { viewport.addEventListener("resize", updateViewport); viewport.addEventListener("scroll", updateViewport); }
+    window.addEventListener("resize", updateViewport);
+    const keepFocusedFieldVisible = event => {
+      if (!event.target.matches("input, textarea, select")) return;
+      window.setTimeout(() => {
+        const field = event.target;
+        if (!field.isConnected) return;
+        const modal = field.closest(".modal");
+        if (modal) {
+          const rect = field.getBoundingClientRect(); const box = modal.getBoundingClientRect();
+          if (rect.bottom > box.bottom - 24 || rect.top < box.top + 12) field.scrollIntoView({block:"center",behavior:"smooth"});
+        } else field.scrollIntoView({block:"center",behavior:"smooth"});
+      }, 280);
+    };
+    document.addEventListener("focusin", keepFocusedFieldVisible);
+    return () => {
+      if (viewport) { viewport.removeEventListener("resize", updateViewport); viewport.removeEventListener("scroll", updateViewport); }
+      window.removeEventListener("resize", updateViewport); document.removeEventListener("focusin", keepFocusedFieldVisible);
+      document.body.classList.remove("keyboard-open");
+    };
+  }, []);
+
   if (!authReady) return <div className="auth-screen"><div className="auth-card">Memeriksa sesi login...</div></div>;
   if (!session) return <Login />;
 
