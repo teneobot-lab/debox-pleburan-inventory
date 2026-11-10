@@ -50,6 +50,8 @@ function App() {
   const [expanded, setExpanded] = useState(""), [moreOpen, setMoreOpen] = useState(false);
   const [filter, setFilter] = useState("Semua"), [toast, setToast] = useState("");
   const [quickAddQuery, setQuickAddQuery] = useState(""), [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
+  const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
   const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
@@ -118,6 +120,32 @@ function App() {
     setQuickAddOpen(false);
     setModal(true);
     setExpanded("");
+  };
+  const addCartItem = () => {
+    if (!cartItem || cartQty === "" || !Number.isFinite(Number(cartQty)) || Number(cartQty) <= 0) {
+      setToast("Pilih barang dan isi jumlah lebih dari 0."); return;
+    }
+    setCart(prev => [...prev, { kode:cartItem.kode, nama:cartItem.nama, satuan:cartItem.satuan||"PCS", jumlah:Number(cartQty) }]);
+    setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
+  };
+  const removeCartItem = index => setCart(prev => prev.filter((_,i)=>i!==index));
+  const saveCart = async () => {
+    if (saving || !cart.length) return;
+    const sheet = sheetMap[page];
+    if (!sheet) return;
+    setSaving(true); setError("");
+    try {
+      for (const item of cart) {
+        await api("create", { sheet, row: {
+          tanggal:cartDate, kode:item.kode, nama:item.nama, jumlah:item.jumlah,
+          satuan:item.satuan, kategori:"", catatan:"", waktu:new Date().toISOString()
+        }});
+      }
+      const count=cart.length;
+      setCart([]); setToast(count+" item berhasil disimpan untuk "+dateLabel(cartDate)+".");
+      await load();
+    } catch (e) { setError(e.message); setToast("Penyimpanan terhenti: "+e.message); }
+    finally { setSaving(false); }
   };
   const save = async e => {
     e.preventDefault();
@@ -205,19 +233,27 @@ function App() {
       <section className="content">
         {error && <div className="alert" role="alert"><AlertTriangle size={17}/><span>{error}</span><button className="alert-close" onClick={()=>setError("")} aria-label="Tutup pesan"><X size={16}/></button></div>}
 
-        {!loading && isTxn && <div className="quick-add-wrap">
-          <label className="searchbox quick-add-search"><Search size={19}/><input
-            value={quickAddQuery}
-            onFocus={()=>setQuickAddOpen(true)}
-            onChange={e=>{setQuickAddQuery(e.target.value);setQuickAddOpen(true);}}
-            placeholder="Cari barang untuk menambahkan transaksi..."
-            aria-label="Cari barang untuk transaksi"
-          />{quickAddQuery && <button type="button" className="quick-add-clear" onClick={()=>{setQuickAddQuery("");setQuickAddOpen(false);}} aria-label="Hapus pencarian"><X size={17}/></button>}</label>
-          {quickAddOpen && quickAddQuery.trim() && <div className="quick-add-results">
-            {quickAddResults.length ? quickAddResults.map(item=><button type="button" key={item.kode} onClick={()=>startTransactionForItem(item)}>
-              <span><b>{item.nama}</b><small>{item.kode} · Stok {fmt(calc.find(x=>x.kode===item.kode)?.sistem ?? 0)} {item.satuan||"PCS"}</small></span><Plus size={18}/>
-            </button>) : <p>Barang tidak ditemukan.</p>}
-          </div>}
+        {!loading && isTxn && <div className="cart-workspace">
+          <div className="cart-date-row"><div><b>Tanggal transaksi</b><small>Semua item dalam keranjang memakai tanggal ini.</small></div><input type="date" value={cartDate} onChange={e=>setCartDate(e.target.value)} aria-label="Tanggal transaksi"/></div>
+          <div className="cart-entry">
+            <label className="searchbox quick-add-search"><Search size={19}/><input
+              value={quickAddQuery}
+              onFocus={()=>setQuickAddOpen(true)}
+              onChange={e=>{setQuickAddQuery(e.target.value);setQuickAddOpen(true);setCartItem(null);}}
+              placeholder="Cari nama atau kode barang..."
+              aria-label="Cari barang"
+            />{quickAddQuery && <button type="button" className="quick-add-clear" onClick={()=>{setQuickAddQuery("");setQuickAddOpen(false);}} aria-label="Hapus pencarian"><X size={17}/></button>}</label>
+            {quickAddOpen && quickAddQuery.trim() && <div className="quick-add-results">
+              {quickAddResults.length ? quickAddResults.map(item=><button type="button" key={item.kode} onClick={()=>{setCartItem(item);setQuickAddQuery(item.nama);setQuickAddOpen(false);setCartQty("");}}>
+                <span><b>{item.nama}</b><small>{item.kode} · Stok {fmt(calc.find(x=>x.kode===item.kode)?.sistem ?? 0)} {item.satuan||"PCS"}</small></span><Plus size={18}/>
+              </button>) : <p>Barang tidak ditemukan.</p>}
+            </div>}
+            {cartItem && <div className="cart-qty-row"><div><b>{cartItem.nama}</b><small>{cartItem.kode} · {cartItem.satuan||"PCS"}</small></div><input type="number" min="0.01" step="any" inputMode="decimal" autoFocus placeholder="Qty" value={cartQty} onChange={e=>setCartQty(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addCartItem();}}}/><button type="button" className="primary cart-add-btn" onClick={addCartItem}><Plus size={17}/> Tambah</button></div>}
+          </div>
+          <div className="cart-panel">
+            <div className="cart-panel-head"><div><h2>Keranjang input</h2><small>{cart.length} baris item · {dateLabel(cartDate)}</small></div><span className="cart-count">{cart.length}</span></div>
+            {cart.length ? <><div className="cart-items">{cart.map((item,i)=><div className="cart-line" key={i}><div><b>{item.nama}</b><small>{item.kode} · {fmt(item.jumlah)} {item.satuan}</small></div><button type="button" onClick={()=>removeCartItem(i)} aria-label={"Hapus "+item.nama}><Trash2 size={17}/></button></div>)}</div><button type="button" className="primary cart-save-btn" disabled={saving} onClick={saveCart}>{saving?"Menyimpan...":"Simpan "+cart.length+" Item"}</button></> : <p className="cart-empty">Cari barang, isi qty, lalu tekan Enter untuk memasukkan ke keranjang.</p>}
+          </div>
         </div>}
         {loading ? <Loading /> : page === "Dashboard" ?
           <Dashboard calc={calc} data={data} total={total} setPage={changePage}/> :
