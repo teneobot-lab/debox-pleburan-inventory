@@ -125,7 +125,14 @@ function App() {
     if (!cartItem || cartQty === "" || !Number.isFinite(Number(cartQty)) || Number(cartQty) <= 0) {
       setToast("Pilih barang dan isi jumlah lebih dari 0."); return;
     }
-    setCart(prev => [...prev, { kode:cartItem.kode, nama:cartItem.nama, satuan:cartItem.satuan||"PCS", jumlah:Number(cartQty) }]);
+    setCart(prev => {
+      const next = [...prev];
+      const index = next.findIndex(x=>x.kode===cartItem.kode);
+      const entry = { kode:cartItem.kode, nama:cartItem.nama, satuan:cartItem.satuan||"PCS", jumlah:Number(cartQty) };
+      if (index >= 0) next[index] = { ...entry, jumlah:page==="Stok Fisik / Opname" ? entry.jumlah : next[index].jumlah + entry.jumlah };
+      else next.push(entry);
+      return next;
+    });
     setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
   };
   const removeCartItem = index => setCart(prev => prev.filter((_,i)=>i!==index));
