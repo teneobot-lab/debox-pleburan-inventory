@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
@@ -211,11 +212,34 @@ function App() {
     return rows.filter(r=>reportType!=="Selisih"||r.jenis==="Selisih").sort((a,b)=>String(b.tanggal||"").localeCompare(String(a.tanggal||"")));
   },[data,reportFrom,reportTo,reportType,reportQuery]);
   const exportReport = () => {
-    const cols=["Tanggal","Jenis","Kode","Nama Barang","Jumlah / Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"];
-    const esc=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
-    const lines=[cols,...reportRows.map(r=>[r.tanggal,r.jenis,r.kode,r.nama,r.jumlah,r.satuan,r.stok_sistem??"",r.stok_fisik??"",r.catatan])].map(row=>row.map(esc).join(";"));
-    const blob=new Blob(["\\uFEFF"+lines.join("\\r\\n")],{type:"text/csv;charset=utf-8"});
-    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="DEBOX-PLEBURAN-Laporan-"+today()+".csv";a.click();URL.revokeObjectURL(url);
+    const rows = reportRows.map(r => ({
+      "Tanggal": r.tanggal || "",
+      "Jenis Transaksi": String(r.jenis || "").replaceAll("_", " "),
+      "Kode Barang": r.kode || "",
+      "Nama Barang": r.nama || "",
+      "Jumlah / Selisih": Number(r.jumlah || 0),
+      "Satuan": r.satuan || "PCS",
+      "Stok Sistem": r.stok_sistem === undefined ? "" : Number(r.stok_sistem),
+      "Stok Fisik": r.stok_fisik === undefined ? "" : Number(r.stok_fisik),
+      "Catatan": r.catatan || ""
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows, {header:["Tanggal","Jenis Transaksi","Kode Barang","Nama Barang","Jumlah / Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"]});
+    ws["!cols"] = [{wch:14},{wch:20},{wch:18},{wch:30},{wch:18},{wch:12},{wch:15},{wch:15},{wch:36}];
+    XLSX.utils.book_append_sheet(wb, ws, "Data Laporan");
+    const info = [
+      ["DEBOX PLEBURAN - LAPORAN"],
+      ["Tanggal Export", today()],
+      ["Filter Dari", reportFrom || "Semua tanggal"],
+      ["Filter Sampai", reportTo || "Semua tanggal"],
+      ["Jenis Laporan", reportType],
+      ["Kata Kunci", reportQuery || "-"],
+      ["Jumlah Baris", rows.length]
+    ];
+    const meta = XLSX.utils.aoa_to_sheet(info);
+    meta["!cols"] = [{wch:24},{wch:34}];
+    XLSX.utils.book_append_sheet(wb, meta, "Ringkasan Filter");
+    XLSX.writeFile(wb, "DEBOX-PLEBURAN-Laporan-" + today() + ".xlsx", {bookType:"xlsx", compression:true});
   };
   useEffect(() => {
     if (!toast) return;
