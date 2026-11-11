@@ -110,8 +110,23 @@ function App() {
   }, [calc, query, filter]);
 
   const openForm = sheet => {
-    setForm({ ...emptyForm, sheet, satuan:"PCS" });
+    setForm({ ...emptyForm, sheet, satuan:"PCS", mode:"create" });
     setModal(true); setExpanded("");
+  };
+  const openEditBarang = item => {
+    setForm({ kode:item.kode, nama:item.nama||"", kategori:item.kategori||"", satuan:item.satuan||"PCS", stok_minimum:String(item.stok_minimum??0), sheet:"Master_Barang", mode:"edit" });
+    setModal(true); setExpanded("");
+  };
+  const deleteBarang = async item => {
+    const approved=window.confirm("Hapus barang "+item.nama+" ("+item.kode+")? Tindakan ini tidak dapat dibatalkan.");
+    if(!approved) return;
+    setSaving(true); setError("");
+    try {
+      await api("delete",{sheet:"Master_Barang",kode:item.kode});
+      setToast("Barang "+item.nama+" berhasil dihapus.");
+      await load();
+    } catch(e) { setError(e.message); setToast(e.message); }
+    finally { setSaving(false); }
   };
   const startTransactionForItem = item => {
     const sheet = sheetMap[page];
@@ -166,8 +181,14 @@ function App() {
     if (saving) return;
     setSaving(true); setError("");
     try {
-      await api("create", { sheet: form.sheet, row: { ...form, jumlah: Number(form.jumlah), waktu: new Date().toISOString() } });
-      setModal(false); setForm(emptyForm); setToast("Data berhasil disimpan."); await load();
+      if(form.sheet==="Master_Barang" && form.mode==="edit") {
+        await api("update",{sheet:"Master_Barang",kode:form.kode,row:{nama:form.nama,kategori:form.kategori,satuan:form.satuan,stok_minimum:form.stok_minimum}});
+        setToast("Data barang berhasil diperbarui.");
+      } else {
+        await api("create", { sheet: form.sheet, row: { ...form, jumlah: Number(form.jumlah), waktu: new Date().toISOString() } });
+        setToast("Data berhasil disimpan.");
+      }
+      setModal(false); setForm(emptyForm); await load();
     } catch (e) { setError(e.message); setToast(e.message); }
     finally { setSaving(false); }
   };
@@ -339,8 +360,8 @@ function App() {
               <label className="searchbox"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)}/></label>
               <div className="filter-chips">{["Semua","Menipis","Habis","Minus"].map(x=><button key={x} className={filter===x?"chip active":"chip"} onClick={()=>setFilter(x)}>{x}</button>)}</div>
             </div>
-            <div className="stock-cards">{shownStock.length ? shownStock.map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)}/>) : <EmptyState text="Barang tidak ditemukan."/>}</div>
-            <div className="desktop-table"><Table rows={shownStock} columns={["kode","nama","sistem","stok_minimum"]} labels={{kode:"Kode",nama:"Nama Barang",sistem:"Stok Sistem",stok_minimum:"Min. Stok"}}/></div>
+            <div className="stock-cards">{shownStock.length ? shownStock.map(item=><StockCard key={item.kode} item={item} expanded={expanded===item.kode} onToggle={()=>setExpanded(expanded===item.kode?"":item.kode)} onEdit={()=>openEditBarang(item)} onDelete={()=>deleteBarang(item)}/>) : <EmptyState text="Barang tidak ditemukan."/>}</div>
+            <div className="desktop-table"><table><thead><tr><th>Kode</th><th>Nama Barang</th><th>Stok Sistem</th><th>Min. Stok</th><th>Aksi</th></tr></thead><tbody>{shownStock.length?shownStock.map(item=><tr key={item.kode}><td>{item.kode}</td><td>{item.nama}</td><td>{fmt(item.sistem)} {item.satuan||"PCS"}</td><td>{fmt(item.stok_minimum)}</td><td><div className="barang-actions"><button type="button" className="secondary" onClick={()=>openEditBarang(item)}>Edit</button><button type="button" className="danger-action" onClick={()=>deleteBarang(item)}>Hapus</button></div></td></tr>):<tr><td colSpan="5" className="empty">Barang tidak ditemukan.</td></tr>}</tbody></table></div>
           </section> :
         page === "Rekap Selisih" ?
           <div className="reconcile-page">
@@ -428,9 +449,9 @@ function App() {
 
     {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
       <form className="modal" onSubmit={save}>
-        <div className="modal-head"><div><small>INPUT DATA</small><h2>{form.sheet==="Master_Barang"?"Tambah Barang":"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
+        <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
         {form.sheet==="Master_Barang" ? <>
-          <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required/>
+          <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required disabled={form.mode==="edit"}/>
           <Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/>
           <Field label="Kategori" value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
           <Field label="Satuan" value={form.satuan||"PCS"} onChange={v=>setForm({...form,satuan:v})}/>
@@ -444,7 +465,7 @@ function App() {
           <Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
           <Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/>
         </>}
-        <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":"Simpan Data"}</button></div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":form.mode==="edit"?"Simpan Perubahan":"Simpan Data"}</button></div>
       </form>
     </div>}
     {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
@@ -456,11 +477,11 @@ function Login(){
  const submit=async e=>{e.preventDefault();setBusy(true);setError("");try{await signIn(email.trim(),password);}catch(err){setError(err.message||"Login gagal.");}finally{setBusy(false);}};
  return <div className="auth-screen"><form className="auth-card" onSubmit={submit}><div className="brandmark auth-mark">D</div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>Inventory Login</h1><p>Masuk untuk mengelola data persediaan.</p>{error&&<div className="alert">{error}</div>}<label className="field"><span>Email</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label className="field"><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label><button className="primary auth-submit" disabled={busy}>{busy?"Memproses...":"Masuk"}</button><small>Akun dibuat administrator melalui Supabase Dashboard.</small></form></div>;
 }
-function Field({label,value,onChange,type="text",required=false}){return <label className="field"><span>{label}</span><input type={type} inputMode={type==="number"?"decimal":undefined} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
+function Field({label,value,onChange,type="text",required=false,disabled=false}){return <label className="field"><span>{label}</span><input disabled={disabled} type={type} inputMode={type==="number"?"decimal":undefined} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
 function Stepper({value,onChange}){const n=Number(value||0);return <div className="stepper"><button type="button" onClick={()=>onChange(String(Math.max(0,n-1)))} aria-label="Kurangi jumlah">−</button><input type="number" inputMode="decimal" min="0" step="any" value={value} onChange={e=>onChange(e.target.value)} required/><button type="button" onClick={()=>onChange(String(n+1))} aria-label="Tambah jumlah">+</button></div>}
 function ItemPicker({items,value,onChange}){const [q,setQ]=useState("");const [open,setOpen]=useState(false);const selected=items.find(x=>x.kode===value);const results=items.filter(x=>(x.nama+" "+x.kode).toLowerCase().includes(q.toLowerCase())).slice(0,8);return <div className="picker"><label className="field"><span>Pilih barang</span><div className="picker-input"><Search size={17}/><input value={open?q:(selected?selected.nama+" · "+selected.kode:q)} onFocus={()=>{setOpen(true);setQ("");}} onChange={e=>setQ(e.target.value)} required={!value}/>{selected&&<button type="button" onClick={()=>{onChange({kode:"",nama:""});setQ("");setOpen(false);}} aria-label="Hapus pilihan"><X size={16}/></button>}</div></label>{open&&<div className="picker-results">{results.map(x=><button type="button" key={x.kode} onClick={()=>{onChange(x);setQ("");setOpen(false);}}><b>{x.nama}</b><small>{x.kode} · Stok {fmt(x.sistem)}</small></button>)}{!results.length&&<p>Barang tidak ditemukan.</p>}<button type="button" className="picker-close" onClick={()=>setOpen(false)}>Tutup daftar</button></div>}</div>}
 function Summary({label,value,note}){return <div className="summary-card"><small>{label}</small><b>{value}</b>{note&&<span>{note}</span>}</div>}
-function StockCard({item,expanded,onToggle,showPhysical=false}){const [label,kind]=statusOf(item);return <article className="stock-card"><button className="stock-card-main" onClick={onToggle} aria-expanded={expanded}><span className="stock-copy"><b>{item.nama}</b><small>{item.kode}{item.kategori?" · "+item.kategori:""}</small></span><span className="stock-value"><strong>{fmt(item.sistem)}</strong><small>{item.satuan||"unit"}</small></span><span className={"badge "+kind}>{label}</span><span className="expand-icon">{expanded?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</span></button>{expanded&&<div className="stock-details"><Detail label="Stok awal" value={item.awal}/><Detail label="Masuk" value={item.masuk}/><Detail label="Terjual" value={item.jual}/><Detail label="Reject" value={item.reject}/><Detail label="Stok fisik" value={item.fisik??"—"}/><Detail label="Selisih" value={item.selisih??"—"} tone={item.selisih>0?"positive":item.selisih<0?"negative":""}/></div>}</article>}
+function StockCard({item,expanded,onToggle,showPhysical=false,onEdit,onDelete}){const [label,kind]=statusOf(item);return <article className="stock-card"><button className="stock-card-main" onClick={onToggle} aria-expanded={expanded}><span className="stock-copy"><b>{item.nama}</b><small>{item.kode}{item.kategori?" · "+item.kategori:""}</small></span><span className="stock-value"><strong>{fmt(item.sistem)}</strong><small>{item.satuan||"unit"}</small></span><span className={"badge "+kind}>{label}</span><span className="expand-icon">{expanded?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</span></button>{expanded&&<div className="stock-details"><Detail label="Stok awal" value={item.awal}/><Detail label="Masuk" value={item.masuk}/><Detail label="Terjual" value={item.jual}/><Detail label="Reject" value={item.reject}/><Detail label="Stok fisik" value={item.fisik??"—"}/><Detail label="Selisih" value={item.selisih??"—"}/>{onEdit&&<div className="barang-actions stock-action-row"><button type="button" className="secondary" onClick={onEdit}>Edit barang</button><button type="button" className="danger-action" onClick={onDelete}>Hapus barang</button></div>}</div>}</article>}
 function Detail({label,value,tone=""}){return <div className="detail"><small>{label}</small><b className={tone}>{typeof value==="number"?fmt(value):value}</b></div>}
 function RecordCard({row,page}){return <article className="record-card"><div><b>{row.nama||row.kode}</b><small>{row.kode}{row.kategori?" · "+row.kategori:""}</small></div><strong>{row.jumlah!==undefined?fmt(row.jumlah):row.stok_minimum!==undefined?"Min. "+fmt(row.stok_minimum):"—"}</strong><small className="record-date">{row.tanggal||row.satuan||""}</small></article>}
 function Table({rows,columns,labels={}}){return <div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c}>{labels[c]||c}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||r.kode||i}>{columns.map(c=><td key={c}>{c==="selisih"&&r[c]!=null?<span className={Number(r[c])<0?"negative":Number(r[c])>0?"positive":"neutral"}>{Number(r[c])>0?"+":""}{fmt(r[c])}</span>:r[c]??"—"}</td>)}</tr>):<tr><td className="empty" colSpan={columns.length}>Belum ada data.</td></tr>}</tbody></table></div>}
