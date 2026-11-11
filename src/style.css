@@ -326,3 +326,15 @@ html{height:100%;overscroll-behavior-y:contain}body{min-height:100%;overscroll-b
 .stock-action-row button{flex:1}
 .desktop-table td{vertical-align:middle}
 @media(max-width:899px){.stock-action-row{margin-top:8px}}
+
+
+/* PDF export and backup/restore tools */
+.report-export-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.data-tools-panel{margin-bottom:18px}
+.data-tools-panel .panel-heading>svg{color:var(--accent);flex:none}
+.data-tools-actions{display:flex;gap:10px;flex-wrap:wrap}
+.data-tools-actions .export-btn{min-width:190px}
+.backup-warning{display:flex;align-items:flex-start;gap:8px;margin:13px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
+.backup-warning svg{flex:none;margin-top:1px;color:#c58a26}
+@media(max-width:850px){.report-export-actions{width:100%}.report-export-actions .export-btn{flex:1;justify-content:center}.data-tools-actions{display:grid;grid-template-columns:1fr}.data-tools-actions .export-btn{width:100%;justify-content:center}}
+@media(max-width:440px){.report-export-actions{display:grid;grid-template-columns:1fr}}
