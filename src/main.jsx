@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
   ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, FileSpreadsheet,
   Plus, Search, Menu, X, AlertTriangle, Boxes, MoreHorizontal, ChevronDown,
-  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays
+  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays, FileText, Database, Upload, Download
 } from "lucide-react";
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
@@ -59,6 +59,8 @@ function App() {
   const [reportTo, setReportTo] = useState("");
   const [reportType, setReportType] = useState("Semua");
   const [reportQuery, setReportQuery] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
+  const backupInputRef = useRef(null);
   const [reconcileDate, setReconcileDate] = useState(today()), [reconcileFilter, setReconcileFilter] = useState("Semua");
 
   const load = async () => {
@@ -262,6 +264,51 @@ function App() {
     XLSX.utils.book_append_sheet(wb, meta, "Ringkasan Filter");
     XLSX.writeFile(wb, "DEBOX-PLEBURAN-Laporan-" + today() + ".xlsx", {bookType:"xlsx", compression:true});
   };
+  const exportReportPdf = () => {
+    const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+    const columns = ["Tanggal","Jenis","Kode","Nama Barang","Jumlah / Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"];
+    const body = reportRows.map(r => [r.tanggal||"",String(r.jenis||"").replaceAll("_"," "),r.kode||"",r.nama||"",fmt(r.jumlah),r.satuan||"PCS",r.stok_sistem===undefined?"—":fmt(r.stok_sistem),r.stok_fisik===undefined?"—":fmt(r.stok_fisik),r.catatan||""]);
+    const popup = window.open("", "_blank");
+    if (!popup) { setToast("Izinkan pop-up browser untuk mencetak PDF."); return; }
+    popup.document.open();
+    popup.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Laporan DEBOX PLEBURAN</title><style>
+      @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#17243a;margin:0}
+      header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #2457d6;padding-bottom:12px;margin-bottom:14px}
+      h1{font-size:19px;margin:0 0 4px}p{margin:3px 0;color:#52627a}.meta{display:grid;grid-template-columns:repeat(3,max-content);gap:6px 22px;margin:12px 0 16px}
+      table{width:100%;border-collapse:collapse;font-size:9px}th{background:#edf2ff;text-align:left;color:#263c68}
+      th,td{border:1px solid #dce3ee;padding:6px 7px;vertical-align:top}tbody tr:nth-child(even){background:#f8faff}
+      footer{margin-top:14px;text-align:right;color:#64748b;font-size:9px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body><header><div><h1>DEBOX PLEBURAN</h1><p>Laporan Persediaan & Transaksi</p></div><div><b>Tanggal cetak</b><p>${escapeHtml(new Date().toLocaleString("id-ID"))}</p></div></header>
+    <div class="meta"><div><b>Jenis:</b> ${escapeHtml(reportType)}</div><div><b>Dari:</b> ${escapeHtml(reportFrom||"Semua tanggal")}</div><div><b>Sampai:</b> ${escapeHtml(reportTo||"Semua tanggal")}</div><div><b>Pencarian:</b> ${escapeHtml(reportQuery||"—")}</div><div><b>Total baris:</b> ${body.length}</div></div>
+    <table><thead><tr>${columns.map(c=>"<th>"+escapeHtml(c)+"</th>").join("")}</tr></thead><tbody>${body.length?body.map(row=>"<tr>"+row.map(v=>"<td>"+escapeHtml(v)+"</td>").join("")+"</tr>").join(""):'<tr><td colspan="9">Tidak ada data sesuai filter.</td></tr>'}</tbody></table>
+    <footer>DEBOX PLEBURAN · Inventory Management</footer><script>window.onload=()=>{window.print()}</script></body></html>`);
+    popup.document.close();
+  };
+  const downloadBackup = () => {
+    const payload = { app:"DEBOX PLEBURAN Inventory", formatVersion:1, exportedAt:new Date().toISOString(), data };
+    const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+    const url = URL.createObjectURL(blob); const link = document.createElement("a");
+    link.href=url; link.download="DEBOX-PLEBURAN-Backup-"+today()+".json"; document.body.appendChild(link); link.click(); link.remove();
+    URL.revokeObjectURL(url); setToast("Backup JSON berhasil diunduh.");
+  };
+  const restoreBackup = async event => {
+    const file=event.target.files?.[0]; event.target.value="";
+    if(!file) return;
+    if(file.size>25*1024*1024){setError("File backup terlalu besar. Maksimal 25 MB.");return;}
+    setBackupBusy(true); setError("");
+    try {
+      const parsed=JSON.parse(await file.text());
+      const allowed=["Master_Barang","Stok_Awal","Barang_Masuk","Penjualan","Barang_Reject","Stok_Opname","Riwayat_Aktivitas"];
+      if(parsed?.app!=="DEBOX PLEBURAN Inventory" || parsed?.formatVersion!==1 || !parsed.data || typeof parsed.data!=="object") throw new Error("Format file bukan backup DEBOX PLEBURAN yang valid.");
+      const counts=allowed.reduce((n,key)=>n+(Array.isArray(parsed.data[key])?parsed.data[key].length:0),0);
+      if(!counts) throw new Error("Backup tidak berisi data yang dapat dipulihkan.");
+      const approved=window.confirm("Pulihkan "+counts+" baris data dari backup? Data yang cocok akan diperbarui dan data baru akan ditambahkan. Data lain yang tidak ada di backup TIDAK dihapus.");
+      if(!approved) return;
+      await api("restore",{data:parsed.data});
+      await load(); setToast("Restore selesai. Data backup berhasil digabungkan.");
+    } catch(err) { setError("Restore gagal: "+(err.message||"File tidak valid.")); }
+    finally { setBackupBusy(false); }
+  };
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 2800);
@@ -399,7 +446,7 @@ function App() {
         page === "Laporan" ?
           <div className="report-page">
             <div className="panel">
-              <div className="panel-heading"><div><h2>Filter & Export Laporan</h2><p>{reportRows.length} baris sesuai filter</p></div><button className="primary export-btn" onClick={exportReport}><FileSpreadsheet size={17}/> Export Excel (.xlsx)</button></div>
+              <div className="panel-heading"><div><h2>Filter & Export Laporan</h2><p>{reportRows.length} baris sesuai filter</p></div><div className="report-export-actions"><button className="primary export-btn" onClick={exportReport}><FileSpreadsheet size={17}/> Export Excel (.xlsx)</button><button className="secondary export-btn" onClick={exportReportPdf}><FileText size={17}/> Cetak / Simpan PDF</button></div></div>
               <div className="report-filter-grid">
                 <label className="field"><span>Dari tanggal</span><input type="date" value={reportFrom} onChange={e=>setReportFrom(e.target.value)}/></label>
                 <label className="field"><span>Sampai tanggal</span><input type="date" value={reportTo} onChange={e=>setReportTo(e.target.value)}/></label>
@@ -407,6 +454,15 @@ function App() {
                 <label className="field"><span>Cari barang / kode / catatan</span><input value={reportQuery} onChange={e=>setReportQuery(e.target.value)}/></label>
               </div>
               <div className="report-table-wrap"><table className="reconcile-table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Kode</th><th>Nama</th><th>Jumlah / Selisih</th><th>Satuan</th><th>Stok Sistem</th><th>Stok Fisik</th></tr></thead><tbody>{reportRows.length?reportRows.map((r,i)=><tr key={r.id||i}><td>{r.tanggal}</td><td>{r.jenis}</td><td>{r.kode}</td><td>{r.nama}</td><td>{fmt(r.jumlah)}</td><td>{r.satuan||"PCS"}</td><td>{r.stok_sistem===undefined?"—":fmt(r.stok_sistem)}</td><td>{r.stok_fisik===undefined?"—":fmt(r.stok_fisik)}</td></tr>):<tr><td colSpan="8" className="empty">Tidak ada data sesuai filter.</td></tr>}</tbody></table></div>
+            </div>
+            <div className="panel data-tools-panel">
+              <div className="panel-heading"><div><h2>Backup & Restore</h2><p>Simpan salinan data atau pulihkan dari file backup JSON.</p></div><Database size={22}/></div>
+              <div className="data-tools-actions">
+                <button type="button" className="primary export-btn" onClick={downloadBackup} disabled={backupBusy}><Download size={17}/> Unduh Backup JSON</button>
+                <button type="button" className="secondary export-btn" onClick={()=>backupInputRef.current?.click()} disabled={backupBusy}><Upload size={17}/> {backupBusy?"Memproses restore...":"Pilih File untuk Restore"}</button>
+                <input ref={backupInputRef} type="file" accept=".json,application/json" hidden onChange={restoreBackup}/>
+              </div>
+              <p className="backup-warning"><AlertTriangle size={15}/> Restore menggabungkan data berdasarkan ID/kode. Data yang tidak ada di file backup tidak dihapus. Buat backup terbaru sebelum melakukan restore.</p>
             </div>
             <div className="grid-two"><div className="panel"><h2>Ringkasan transaksi</h2>{[["Barang Masuk",total("Barang_Masuk")],["Penjualan",total("Penjualan")],["Barang Reject",total("Barang_Reject")],["Stok Opname",(data.Stok_Opname||[]).length]].map(([k,v])=><div className="report-row" key={k}><span>{k}</span><b>{fmt(v)}</b></div>)}</div><div className="panel"><h2>Catatan perhitungan</h2><p className="muted">Stok Sistem = Stok Awal + Barang Masuk − Penjualan − Barang Reject.</p><p className="muted">Selisih = Stok Fisik − Stok Sistem. Selisih tidak mengubah stok sistem secara otomatis.</p></div></div></div> :
         isHistory ?
