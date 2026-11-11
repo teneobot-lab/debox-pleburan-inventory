@@ -38,6 +38,24 @@ export async function api(action,payload={}){
   if(error) throw error;
   return {ok:true,message:"Data barang berhasil diperbarui."};
  }
+ if(action==="restore"){
+  if(!(await getSession())) throw new Error("Silakan login terlebih dahulu.");
+  const allowed={Master_Barang:"master_barang",Stok_Awal:"stok_awal",Barang_Masuk:"barang_masuk",Penjualan:"penjualan",Barang_Reject:"barang_reject",Stok_Opname:"stok_opname",Riwayat_Aktivitas:"riwayat_aktivitas"};
+  const source=payload.data||{};
+  for(const [key,table] of Object.entries(allowed)){
+   const rows=source[key];
+   if(rows===undefined) continue;
+   if(!Array.isArray(rows)) throw new Error("Struktur backup tidak valid pada "+key+".");
+   for(let i=0;i<rows.length;i+=200){
+    const batch=rows.slice(i,i+200);
+    if(!batch.length) continue;
+    const options=key==="Master_Barang"?{onConflict:"kode"}:undefined;
+    const {error}=await db.from(table).upsert(batch,options);
+    if(error) throw new Error("Gagal memulihkan "+key+": "+error.message);
+   }
+  }
+  return {ok:true,message:"Restore selesai."};
+ }
  if(action==="create"){
   const table=TABLES[payload.sheet]; if(!table||payload.sheet==="Riwayat_Aktivitas")throw new Error("Jenis data tidak diizinkan.");
   const row={...(payload.row||{})}; delete row.sheet;
