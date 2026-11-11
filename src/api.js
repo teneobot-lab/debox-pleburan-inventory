@@ -16,6 +16,28 @@ export async function api(action,payload={}){
   const entries=await Promise.all(Object.entries(TABLES).map(async([key,table])=>{const {data,error}=await db.from(table).select("*").order(key==="Master_Barang"?"created_at":"waktu",{ascending:false});if(error)throw error;return[key,data||[]];}));
   return {ok:true,data:Object.fromEntries(entries)};
  }
+ if(action==="update" || action==="delete"){
+  if(payload.sheet!=="Master_Barang") throw new Error("Aksi hanya tersedia untuk data barang.");
+  const kode=String(payload.kode||"").trim();
+  if(!kode) throw new Error("Kode barang tidak valid.");
+  if(action==="delete"){
+   const {error}=await db.from("master_barang").delete().eq("kode",kode);
+   if(error?.code==="23503") throw new Error("Barang tidak bisa dihapus karena masih memiliki transaksi. Hapus atau arsipkan transaksi terkait terlebih dahulu.");
+   if(error) throw error;
+   return {ok:true,message:"Barang berhasil dihapus."};
+  }
+  const row={...(payload.row||{})};
+  delete row.kode;
+  row.nama=String(row.nama||"").trim();
+  row.kategori=String(row.kategori||"").trim();
+  row.satuan=String(row.satuan||"PCS").trim()||"PCS";
+  row.stok_minimum=Number(row.stok_minimum||0);
+  if(!row.nama) throw new Error("Nama barang wajib diisi.");
+  if(!Number.isFinite(row.stok_minimum)||row.stok_minimum<0) throw new Error("Stok minimum tidak valid.");
+  const {error}=await db.from("master_barang").update(row).eq("kode",kode);
+  if(error) throw error;
+  return {ok:true,message:"Data barang berhasil diperbarui."};
+ }
  if(action==="create"){
   const table=TABLES[payload.sheet]; if(!table||payload.sheet==="Riwayat_Aktivitas")throw new Error("Jenis data tidak diizinkan.");
   const row={...(payload.row||{})}; delete row.sheet;
