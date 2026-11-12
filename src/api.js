@@ -42,7 +42,16 @@ export async function api(action,payload={}){
    const {error}=await db.from("penjualan").update(updated).eq("id",id);
    if(error) throw error;
    if(existing.waktu){
-    const {error:logError}=await db.from("riwayat_aktivitas").update(updated).eq("jenis","Penjualan").eq("kode",existing.kode).eq("waktu",existing.waktu);
+    // riwayat_aktivitas tidak memiliki kolom satuan; sinkronkan hanya kolom yang tersedia.
+    const activityUpdate={
+     tanggal:updated.tanggal,
+     kode:updated.kode,
+     nama:updated.nama,
+     jumlah:updated.jumlah,
+     kategori:updated.kategori,
+     catatan:updated.catatan
+    };
+    const {error:logError}=await db.from("riwayat_aktivitas").update(activityUpdate).eq("jenis","Penjualan").eq("kode",existing.kode).eq("waktu",existing.waktu);
     if(logError) throw new Error("Penjualan diperbarui, tetapi riwayat aktivitas gagal diperbarui: "+logError.message);
    }
    return {ok:true,message:"Transaksi penjualan berhasil diperbarui."};
