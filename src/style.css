@@ -490,3 +490,36 @@ body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,
 .summary-card:nth-child(2){border-top:3px solid var(--brand-yellow)!important}
 .bottom-item.active{color:var(--brand-red)!important}
 .date-transaction-icon{background:#fff0f0!important;color:var(--brand-red)!important}
+
+
+/* Consistent transaction form field layout */
+.modal-form-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ column-gap:16px;row-gap:0;align-items:start;
+}
+.modal-form-grid>.field{min-width:0;margin:8px 0 12px}
+.modal-form-grid>.field input,.modal-form-grid>.field select{
+ min-height:43px;border-radius:7px;padding:10px 12px;font-size:14px;
+}
+.modal-form-grid>.item-picker,
+.modal-form-grid>.current-stock,
+.modal-form-grid>.delta-box,
+.modal-form-grid>.qty-field,
+.modal-form-grid>.field:last-child{
+ grid-column:1/-1;
+}
+.modal-form-grid .qty-field{margin:8px 0 12px}
+.modal-form-grid .current-stock{margin:2px 0 10px}
+.modal-form-grid .picker-input{min-height:43px}
+.modal-form-grid .picker-results{z-index:8}
+.modal-actions{justify-content:flex-end;gap:10px}
+.modal-actions button{min-height:42px;min-width:112px;border-radius:7px}
+@media(max-width:600px){
+ .modal-form-grid{grid-template-columns:minmax(0,1fr);column-gap:0}
+ .modal-form-grid>.field,.modal-form-grid>.item-picker,
+ .modal-form-grid>.current-stock,.modal-form-grid>.delta-box,
+ .modal-form-grid>.qty-field{grid-column:1}
+ .modal-form-grid>.field{margin:6px 0 10px}
+ .modal-actions{display:grid;grid-template-columns:1fr 1fr}
+ .modal-actions button{width:100%;min-width:0}
+}
