@@ -417,7 +417,8 @@ function App() {
 
         {!loading && isTxn && <div className="cart-workspace">
           <div className="cart-date-row"><div><b>Tanggal transaksi</b><small>Semua item dalam keranjang memakai tanggal ini.</small></div><input type="date" value={cartDate} onChange={e=>setCartDate(e.target.value)} aria-label="Tanggal transaksi"/></div>
-          <div className="cart-entry">\n            {page==="Barang Masuk" && <div className="ocr-launch"><button type="button" className="secondary" onClick={()=>{setOcrOpen(true);setOcrProgress("");setOcrRows([]);}}><ScanText size={17}/> Scan dari Foto A4</button><small>Foto atau unggah daftar barang cetak</small></div>
+          {page==="Barang Masuk" && <div className="ocr-launch"><button type="button" className="primary" onClick={()=>{setOcrOpen(true);setOcrProgress("");setOcrRows([]);}}><ScanText size={18}/> Scan dari Foto A4</button><small>Foto atau unggah daftar barang cetak A4</small></div>}
+          <div className="cart-entry">
             <label className="searchbox quick-add-search"><Search size={19}/><input
               value={quickAddQuery}
               onFocus={()=>setQuickAddOpen(true)}
