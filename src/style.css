@@ -538,3 +538,8 @@ body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,
 .ocr-row-source{font-size:11px;color:#66758a;overflow-wrap:anywhere}
 .ocr-row select,.ocr-row input{min-width:0;width:100%;height:38px;border:1px solid #dfe5ec;border-radius:6px;padding:6px;background:white;color:#34445b}
 @media(max-width:600px){.ocr-modal{width:100%;max-height:var(--visible-vh,100dvh)}.ocr-row{grid-template-columns:minmax(0,1fr) 76px}.ocr-row-source{grid-column:1/-1}.ocr-row select{grid-column:1}.ocr-row input{grid-column:2}.ocr-result-head{flex-direction:column}}
+
+/* Separate OCR camera capture and gallery upload actions */
+.ocr-upload-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.ocr-upload-actions .ocr-upload{width:100%;margin:0;min-width:0}
+@media(max-width:520px){.ocr-upload-actions{grid-template-columns:1fr}.ocr-upload-actions .ocr-upload{min-height:46px}}
