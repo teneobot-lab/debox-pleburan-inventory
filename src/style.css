@@ -343,3 +343,111 @@ html{height:100%;overscroll-behavior-y:contain}body{min-height:100%;overscroll-b
 .sales-row-actions button{font-size:11px;padding:6px 10px;min-height:30px}
 .date-transaction-item{gap:10px}
 @media(max-width:600px){.date-transaction-item{flex-wrap:wrap}.sales-row-actions{width:100%;margin-left:0;justify-content:flex-end}}
+
+
+/* Zoho Inventory-inspired light workspace refresh */
+:root{
+  color-scheme:light;
+  --bg:#f5f7fa;--surface:#ffffff;--surface-2:#f8fafc;--text:#202b3c;
+  --muted:#718096;--line:#e5e9f0;--accent:#2878d0;--accent-soft:#eaf3fc;
+  --shadow:0 2px 8px rgba(25,42,70,.045);
+  --green:#16845b;--green-bg:#e9f7f0;--red:#d64545;--red-bg:#fff0f0;
+  --yellow:#a66a12;--yellow-bg:#fff6e5;
+}
+html,body,#root{min-height:100%;background:var(--bg);color:var(--text)}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:0}
+.app{min-height:100vh;background:var(--bg)}
+.sidebar{background:#fff!important;color:#34445b!important;border-right:1px solid #e7ebf1!important;padding:22px 14px!important;box-shadow:none!important}
+.sidebar .brand{padding:2px 9px 25px!important;border-bottom:1px solid #edf0f4}
+.sidebar .brand b{color:#26364b!important;font-size:12px!important;letter-spacing:.45px!important}
+.sidebar .brand small{color:#8b98a9!important}
+.sidebar .brandmark{border-radius:10px!important;background:#2878d0!important;box-shadow:none!important}
+.sidebar .nav-caption{color:#9aa5b4!important;font-size:10px!important;font-weight:700;letter-spacing:1.1px;margin:22px 10px 9px}
+.sidebar .nav{height:42px!important;margin:3px 0!important;padding:0 12px!important;border-radius:7px!important;color:#59677a!important;font-size:13px!important;font-weight:550}
+.sidebar .nav svg{color:#8492a5}
+.sidebar .nav:hover{background:#f3f7fb!important;color:#2878d0!important}
+.sidebar .nav.active{background:#eaf3fc!important;color:#1769b3!important;box-shadow:none!important;border-left:0!important;font-weight:700}
+.sidebar .nav.active svg{color:#2878d0}
+.sidebar-foot{border-color:#edf0f4!important;color:#7c8999!important;font-size:11px}
+.main{background:var(--bg)!important}
+.topbar{height:72px!important;padding:0 32px!important;background:#fff!important;border-bottom:1px solid #e7ebf1!important;box-shadow:none!important}
+.topbar-title .eyebrow{color:#8a96a6!important;font-size:9px!important;font-weight:700;letter-spacing:1.1px!important}
+.topbar h1{font-size:21px!important;font-weight:650!important;letter-spacing:-.45px!important;color:#26364b!important}
+.top-actions{gap:12px}
+.today{color:#7b8797;font-size:12px}
+.icon-btn{border:1px solid #e4e9f0!important;background:#fff!important;color:#64748b!important;border-radius:7px!important}
+.logout-btn{background:#fff!important;border:1px solid #e4e9f0!important;color:#536176!important;border-radius:7px!important}
+.content{max-width:1600px!important;padding:27px 32px 40px!important}
+.content>footer{color:#9aa5b4;font-size:11px;padding-top:20px}
+.panel,.stat,.summary-card,.stock-card,.record-card,.cart-panel,.cart-entry,.cart-date-row,.reconcile-table-wrap,.date-transaction-card{
+  border:1px solid #e6eaf0!important;border-radius:9px!important;box-shadow:0 2px 7px rgba(28,45,70,.035)!important;background:#fff!important
+}
+.panel{padding:21px!important}
+.panel-heading h2,.cart-panel-head h2{font-size:15px!important;font-weight:650!important;color:#29384c}
+.panel-heading p{font-size:11px!important;color:#8793a3!important}
+.summary-card{border-radius:9px!important;padding:16px 17px!important;box-shadow:none!important;gap:7px!important}
+.summary-card small{font-size:11px!important;color:#758296!important;font-weight:550!important}
+.summary-card b{font-size:23px!important;color:#27364a!important;font-weight:650!important;letter-spacing:-.5px!important}
+.summary-card span{color:#8b97a7;font-size:10px}
+.searchbox,.field input,.field select,.picker-input,.stepper input,.cart-date-row input,.cart-qty-row input{
+  background:#fff!important;border:1px solid #dfe5ec!important;border-radius:7px!important;color:#34445b!important;box-shadow:none!important
+}
+.searchbox{min-height:42px}
+.searchbox:focus-within,.field input:focus,.field select:focus,.picker-input:focus-within{border-color:#7db2e5!important;box-shadow:0 0 0 2px rgba(40,120,208,.09)!important}
+.field span{font-size:11px!important;color:#66758a!important;font-weight:600!important}
+.chip{height:34px!important;border:1px solid #e0e6ed!important;border-radius:7px!important;background:#fff!important;color:#68778b!important;font-size:11px!important}
+.chip.active{background:#eaf3fc!important;border-color:#c9def2!important;color:#1769b3!important}
+.primary{background:#2878d0!important;border:1px solid #2878d0!important;border-radius:7px!important;box-shadow:none!important;color:#fff!important}
+.secondary,.export-btn{background:#fff!important;border:1px solid #dfe5ec!important;border-radius:7px!important;color:#526176!important;box-shadow:none!important}
+.danger-action{border-radius:7px!important}
+.fab{background:#2878d0!important;border-radius:50%!important;box-shadow:0 4px 12px rgba(40,120,208,.22)!important}
+.stock-card{border-radius:8px!important}
+.stock-card-main{min-height:68px!important}
+.badge,.reconcile-status{border-radius:5px!important}
+.reconcile-heading h2{font-size:23px!important;font-weight:650!important}
+.reconcile-table-wrap{border-radius:9px!important}
+.reconcile-table thead th{background:#f7f9fc!important;color:#77859a!important;font-size:10px!important;letter-spacing:.35px!important}
+.reconcile-table tbody td{font-size:12px!important}
+.reconcile-table tbody tr:hover td{background:#f9fbfd!important}
+.date-transaction-card{border-radius:8px!important;background:#fff!important}
+.date-transaction-trigger{min-height:62px!important}
+.date-transaction-icon{border-radius:7px!important;background:#edf5fc!important;color:#2878d0!important}
+.modal{border:1px solid #e5eaf0!important;border-radius:12px!important;box-shadow:0 18px 60px rgba(20,35,55,.2)!important}
+.modal-head h2{font-weight:650!important}
+.toast{border-radius:8px!important}
+.alert{border-radius:8px!important}
+.auth-card{border:1px solid #e5eaf0!important;border-radius:12px!important;box-shadow:0 8px 28px rgba(25,42,70,.07)!important}
+.auth-submit{border-radius:7px!important}
+@media(min-width:900px){
+ .sidebar{width:248px!important;flex:0 0 248px!important}
+ .content{padding-left:34px!important;padding-right:34px!important}
+}
+@media(max-width:899px){
+ .sidebar{display:none!important}
+ .topbar{height:64px!important;padding:0 15px!important}
+ .topbar h1{font-size:18px!important}
+ .topbar-title .eyebrow{font-size:8px!important}
+ .content{padding:18px 13px calc(100px + env(safe-area-inset-bottom))!important}
+ .panel{padding:15px!important}
+ .bottom-nav{background:rgba(255,255,255,.97)!important;border-top:1px solid #e5e9ef!important;box-shadow:0 -3px 12px rgba(25,42,70,.04)!important}
+ .bottom-item{color:#78869a!important}
+ .bottom-item.active{color:#2878d0!important}
+ .more-sheet{background:#fff!important;border:1px solid #e5e9ef!important;box-shadow:0 12px 35px rgba(25,42,70,.14)!important}
+ .more-sheet button{color:#34445b!important}
+ .today{display:none}
+}
+@media(prefers-color-scheme:dark){
+ :root{color-scheme:light;--bg:#f5f7fa;--surface:#fff;--surface-2:#f8fafc;--text:#202b3c;--muted:#718096;--line:#e5e9f0;--accent:#2878d0;--accent-soft:#eaf3fc}
+ body,.main,.app{background:#f5f7fa!important;color:#202b3c!important}
+ .sidebar,.topbar,.panel,.summary-card,.stock-card,.record-card,.cart-panel,.cart-entry,.cart-date-row,.reconcile-table-wrap,.date-transaction-card,.reconcile-mobile-card,.modal{background:#fff!important;color:#202b3c!important}
+ .sidebar{border-right:1px solid #e7ebf1!important}
+ .sidebar .brand b,.topbar h1,.summary-card b,.panel-heading h2,.cart-panel-head h2,.reconcile-heading h2{color:#26364b!important}
+ .sidebar .nav{color:#59677a!important}
+ .sidebar .nav.active{background:#eaf3fc!important;color:#1769b3!important}
+ .topbar{border-color:#e7ebf1!important}
+ .searchbox,.field input,.field select,.picker-input,.stepper input,.cart-date-row input,.cart-qty-row input{background:#fff!important;color:#34445b!important;border-color:#dfe5ec!important}
+ .reconcile-table thead th{background:#f7f9fc!important;color:#77859a!important}
+ .reconcile-table tbody td{color:#34445b!important;border-color:#edf0f5!important}
+ .reconcile-item b,.reconcile-mobile-top b{color:#26364b!important}
+ .bottom-nav{background:rgba(255,255,255,.97)!important}
+}
