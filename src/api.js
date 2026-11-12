@@ -17,7 +17,37 @@ export async function api(action,payload={}){
   return {ok:true,data:Object.fromEntries(entries)};
  }
  if(action==="update" || action==="delete"){
-  if(payload.sheet!=="Master_Barang") throw new Error("Aksi hanya tersedia untuk data barang.");
+  if(payload.sheet==="Penjualan"){
+   const id=payload.id;
+   if(!id) throw new Error("ID transaksi penjualan tidak ditemukan.");
+   if(action==="delete"){
+    const {data:existing,error:readError}=await db.from("penjualan").select("*").eq("id",id).maybeSingle();
+    if(readError) throw readError;
+    if(!existing) throw new Error("Transaksi penjualan tidak ditemukan.");
+    const {error}=await db.from("penjualan").delete().eq("id",id);
+    if(error) throw error;
+    if(existing.waktu){
+     const {error:logError}=await db.from("riwayat_aktivitas").delete().eq("jenis","Penjualan").eq("kode",existing.kode).eq("waktu",existing.waktu);
+     if(logError) throw new Error("Penjualan terhapus, tetapi riwayat aktivitas gagal diperbarui: "+logError.message);
+    }
+    return {ok:true,message:"Transaksi penjualan berhasil dihapus."};
+   }
+   const row=payload.row||{};
+   const jumlah=Number(row.jumlah);
+   if(!row.tanggal||!row.kode||!String(row.nama||"").trim()||!Number.isFinite(jumlah)||jumlah<=0) throw new Error("Tanggal, barang, dan jumlah penjualan wajib valid.");
+   const updated={tanggal:row.tanggal,kode:row.kode,nama:String(row.nama).trim(),jumlah,satuan:row.satuan||"PCS",kategori:row.kategori||"",catatan:row.catatan||""};
+   const {data:existing,error:readError}=await db.from("penjualan").select("*").eq("id",id).maybeSingle();
+   if(readError) throw readError;
+   if(!existing) throw new Error("Transaksi penjualan tidak ditemukan.");
+   const {error}=await db.from("penjualan").update(updated).eq("id",id);
+   if(error) throw error;
+   if(existing.waktu){
+    const {error:logError}=await db.from("riwayat_aktivitas").update(updated).eq("jenis","Penjualan").eq("kode",existing.kode).eq("waktu",existing.waktu);
+    if(logError) throw new Error("Penjualan diperbarui, tetapi riwayat aktivitas gagal diperbarui: "+logError.message);
+   }
+   return {ok:true,message:"Transaksi penjualan berhasil diperbarui."};
+  }
+  if(payload.sheet!=="Master_Barang") throw new Error("Aksi hanya tersedia untuk data barang dan penjualan.");
   const kode=String(payload.kode||"").trim();
   if(!kode) throw new Error("Kode barang tidak valid.");
   if(action==="delete"){
