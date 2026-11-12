@@ -451,3 +451,42 @@ body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,
  .reconcile-item b,.reconcile-mobile-top b{color:#26364b!important}
  .bottom-nav{background:rgba(255,255,255,.97)!important}
 }
+
+/* DEBOX Rice Box brand palette */
+:root{
+ --accent:#d71920;--accent-soft:#fff0f0;--brand-red:#d71920;
+ --brand-yellow:#ffdf00;--brand-ink:#252525;
+}
+.sidebar .brandmark.logo-slot{
+ background:#fff!important;border:1px solid #f0e2e2!important;
+ border-radius:10px!important;overflow:hidden!important;
+ box-shadow:none!important;width:46px!important;height:46px!important;
+}
+.sidebar .brandmark.logo-slot img{
+ display:block!important;width:100%!important;height:100%!important;
+ object-fit:contain!important;background:#fff!important;
+}
+.sidebar .brandmark.logo-slot span{display:none!important}
+.sidebar .brand b{color:var(--brand-ink)!important}
+.sidebar .nav.active{
+ background:#fff0f0!important;color:#bd151b!important;
+ border-left:3px solid var(--brand-red)!important;padding-left:9px!important;
+}
+.sidebar .nav.active svg{color:var(--brand-red)!important}
+.primary,.fab{
+ background:var(--brand-red)!important;border-color:var(--brand-red)!important;
+}
+.primary:hover,.fab:hover{background:#b9151b!important}
+.chip.active{
+ background:#fff0f0!important;border-color:#f2c7c9!important;color:#bd151b!important;
+}
+.icon-btn:focus-visible,.secondary:focus-visible,.primary:focus-visible{
+ outline:2px solid rgba(215,25,32,.25)!important;outline-offset:2px;
+}
+.brandmark.auth-mark{background:#fff!important;color:var(--brand-red)!important;border:1px solid #f0d8d9!important}
+.auth-card .eyebrow{color:var(--brand-red)!important}
+.auth-submit{background:var(--brand-red)!important;border-color:var(--brand-red)!important}
+.summary-card:first-child{border-top:3px solid var(--brand-red)!important}
+.summary-card:nth-child(2){border-top:3px solid var(--brand-yellow)!important}
+.bottom-item.active{color:var(--brand-red)!important}
+.date-transaction-icon{background:#fff0f0!important;color:var(--brand-red)!important}
