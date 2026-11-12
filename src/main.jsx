@@ -525,7 +525,7 @@ function App() {
     {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
       <form className="modal" onSubmit={save}>
         <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):form.sheet==="Penjualan"?(form.mode==="edit"?"Edit Penjualan":"Tambah Penjualan"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
-        {form.sheet==="Master_Barang" ? <>
+        <div className="modal-form-grid">
           <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required disabled={form.mode==="edit"}/>
           <Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/>
           <Field label="Kategori" value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
@@ -540,6 +540,8 @@ function App() {
           <Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
           <Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/>
         </>}
+        </div>
+
         <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":form.mode==="edit"?"Simpan Perubahan":"Simpan Data"}</button></div>
       </form>
     </div>}
