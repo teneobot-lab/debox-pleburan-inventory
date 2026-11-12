@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
+import deboxLogo from "../logo-debox.jpg";
 
 const menus = [
   ["Dashboard", LayoutDashboard], ["Data Barang", Package], ["Stok Awal", Boxes],
@@ -369,7 +370,7 @@ function App() {
 
   return <div className="app">
     <aside className="sidebar">
-      <div className="brand"><div className="brandmark logo-slot"><img src="/logo-debox.jpg" alt="DEBOX PLEBURAN" onError={e=>{e.currentTarget.style.display="none";}}/><span>D</span></div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
+      <div className="brand"><div className="brandmark logo-slot"><img src={deboxLogo} alt="DEBOX PLEBURAN" onError={e=>{e.currentTarget.style.display="none";}}/><span>D</span></div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
       <div className="nav-caption">MENU UTAMA</div>
       <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>changePage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-foot"><span className="live-dot"/> Terhubung ke Supabase</div>
@@ -549,7 +550,7 @@ function App() {
 function Login(){
  const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const submit=async e=>{e.preventDefault();setBusy(true);setError("");try{await signIn(email.trim(),password);}catch(err){setError(err.message||"Login gagal.");}finally{setBusy(false);}};
- return <div className="auth-screen"><form className="auth-card" onSubmit={submit}><div className="brandmark auth-mark">D</div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>Inventory Login</h1><p>Masuk untuk mengelola data persediaan.</p>{error&&<div className="alert">{error}</div>}<label className="field"><span>Email</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label className="field"><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label><button className="primary auth-submit" disabled={busy}>{busy?"Memproses...":"Masuk"}</button><small>Akun dibuat administrator melalui Supabase Dashboard.</small></form></div>;
+ return <div className="auth-screen"><form className="auth-card" onSubmit={submit}><div className="brandmark auth-mark"><img src={deboxLogo} alt="DEBOX RICE BOX" /></div><div className="eyebrow">PT DEBOX PLEBURAN</div><h1>Inventory Login</h1><p>Masuk untuk mengelola data persediaan.</p>{error&&<div className="alert">{error}</div>}<label className="field"><span>Email</span><input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required /></label><label className="field"><span>Password</span><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required /></label><button className="primary auth-submit" disabled={busy}>{busy?"Memproses...":"Masuk"}</button><small>Akun dibuat administrator melalui Supabase Dashboard.</small></form></div>;
 }
 function Field({label,value,onChange,type="text",required=false,disabled=false}){return <label className="field"><span>{label}</span><input disabled={disabled} type={type} inputMode={type==="number"?"decimal":undefined} value={value??""} onChange={e=>onChange(e.target.value)} required={required} min={type==="number"?"0":undefined} step={type==="number"?"any":undefined}/></label>}
 function Stepper({value,onChange}){const n=Number(value||0);return <div className="stepper"><button type="button" onClick={()=>onChange(String(Math.max(0,n-1)))} aria-label="Kurangi jumlah">−</button><input type="number" inputMode="decimal" min="0" step="any" value={value} onChange={e=>onChange(e.target.value)} required/><button type="button" onClick={()=>onChange(String(n+1))} aria-label="Tambah jumlah">+</button></div>}
