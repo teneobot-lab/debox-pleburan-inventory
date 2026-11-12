@@ -5,12 +5,11 @@ import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
   ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, FileSpreadsheet,
   Plus, Search, Menu, X, AlertTriangle, Boxes, MoreHorizontal, ChevronDown,
-  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays, FileText, Database, Upload, Download, ScanText
+  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays, FileText, Database, Upload, Download
 } from "lucide-react";
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
 import deboxLogo from "../logo-debox.jpg";
-import { scanA4Document as scanA4DocumentFile } from "./ocr.js";
 
 const menus = [
   ["Dashboard", LayoutDashboard], ["Data Barang", Package], ["Stok Awal", Boxes],
@@ -55,8 +54,6 @@ function App() {
   const [quickAddQuery, setQuickAddQuery] = useState(""), [quickAddOpen, setQuickAddOpen] = useState(false);
   const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
   const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
-  const [ocrOpen,setOcrOpen]=useState(false),[ocrBusy,setOcrBusy]=useState(false),[ocrProgress,setOcrProgress]=useState(""),[ocrRows,setOcrRows]=useState([]),[ocrFileName,setOcrFileName]=useState("");
-  const ocrCameraRef=useRef(null), ocrUploadRef=useRef(null);
   const [expandedTransactionDate, setExpandedTransactionDate] = useState("");
   const [historyType, setHistoryType] = useState("Semua");
   const [reportFrom, setReportFrom] = useState("");
@@ -176,52 +173,6 @@ function App() {
       return next;
     });
     setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
-  };
-  const scanA4Document = async file => {
-    if (!file) return;
-    setOcrFileName(file.name);
-    setOcrRows([]);
-    setOcrBusy(true);
-    setOcrProgress("Menyiapkan foto...");
-    try {
-      const result = await scanA4DocumentFile(file, items, progress => {
-        setOcrProgress("Memproses dokumen " + progress + "%");
-      });
-      const detected = result.rows.map((row, index) => ({
-        id: index,
-        no: row.no,
-        kode: row.item?.kode || "",
-        nama: row.item?.nama || row.namaTerbaca,
-        jumlah: row.jumlah,
-        satuan: row.satuan || row.item?.satuan || "PCS",
-        matched: Boolean(row.item),
-        matchScore: row.matchScore,
-        needsReview: row.needsReview,
-        source: row.originalText
-      }));
-      setOcrRows(detected);
-      setOcrProgress(
-        detected.length
-          ? "Terbaca " + detected.length + " baris. " +
-            detected.filter(row => row.matched).length +
-            " cocok dengan Master Barang. Periksa hasil sebelum memasukkan ke keranjang."
-          : "Tidak ada baris jumlah dan satuan yang berhasil dikenali. Periksa foto atau format dokumen."
-      );
-      if (result.missingNumbers.length) {
-        setOcrProgress(prev => prev + " Nomor baris yang mungkin terlewat: " + result.missingNumbers.join(", ") + ".");
-      }
-    } catch (e) {
-      setError("OCR gagal: " + e.message);
-      setOcrProgress("");
-    } finally {
-      setOcrBusy(false);
-    }
-  };
-  const addOcrRowsToCart=()=>{
-    const valid=ocrRows.filter(x=>x.kode&&Number(x.jumlah)>0);
-    if(!valid.length){setToast("Belum ada baris yang cocok dengan Master Barang.");return;}
-    setCart(prev=>{const next=[...prev];for(const row of valid){const i=next.findIndex(x=>x.kode===row.kode);const entry={kode:row.kode,nama:row.nama,jumlah:Number(row.jumlah),satuan:row.satuan||"PCS"};if(i>=0)next[i]={...next[i],jumlah:next[i].jumlah+entry.jumlah};else next.push(entry);}return next;});
-    setOcrOpen(false);setOcrRows([]);setToast(valid.length+" baris hasil scan ditambahkan ke keranjang.");
   };
   const removeCartItem = index => setCart(prev => prev.filter((_,i)=>i!==index));
   const saveCart = async () => {
@@ -440,7 +391,6 @@ function App() {
 
         {!loading && isTxn && <div className="cart-workspace">
           <div className="cart-date-row"><div><b>Tanggal transaksi</b><small>Semua item dalam keranjang memakai tanggal ini.</small></div><input type="date" value={cartDate} onChange={e=>setCartDate(e.target.value)} aria-label="Tanggal transaksi"/></div>
-          {page==="Barang Masuk" && <div className="ocr-launch"><button type="button" className="primary" onClick={()=>{setOcrOpen(true);setOcrProgress("");setOcrRows([]);}}><ScanText size={18}/> Scan dari Foto A4</button><small>Foto atau unggah daftar barang cetak A4</small></div>}
           <div className="cart-entry">
             <label className="searchbox quick-add-search"><Search size={19}/><input
               value={quickAddQuery}
@@ -571,49 +521,6 @@ function App() {
       <button className={moreMenus.includes(page)||moreOpen?"bottom-item active":"bottom-item"} onClick={()=>setMoreOpen(!moreOpen)}><MoreHorizontal size={20}/><span>Lainnya</span></button>
     </nav>
     {moreOpen && <><button className="more-scrim" aria-label="Tutup menu" onClick={()=>setMoreOpen(false)}/><div className="more-sheet">{moreMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} onClick={()=>changePage(label)}><Icon size={19}/>{label}</button>;})}</div></>}
-
-    {ocrOpen && <div className="modal-backdrop ocr-backdrop" onMouseDown={e=>e.target===e.currentTarget&&!ocrBusy&&setOcrOpen(false)}>
-      <section className="modal ocr-modal">
-        <div className="modal-head"><div><small>OCR DOKUMEN</small><h2>Scan Daftar Barang A4</h2></div><button type="button" className="icon-btn" onClick={()=>setOcrOpen(false)} aria-label="Tutup"><X/></button></div>
-        <p className="ocr-help">Unggah foto atau hasil scan kertas A4 yang dicetak jelas. Sistem membaca teks lalu mencocokkan kode/nama barang dengan Master Barang.</p>
-        <input ref={ocrCameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e=>{scanA4Document(e.target.files?.[0]);e.target.value="";}}/>
-        <input ref={ocrUploadRef} type="file" accept="image/*" hidden onChange={e=>{scanA4Document(e.target.files?.[0]);e.target.value="";}}/>
-        <div className="ocr-upload-actions">
-          <button type="button" className="primary ocr-upload" disabled={ocrBusy} onClick={()=>ocrCameraRef.current?.click()}><ScanText size={18}/> Ambil Foto</button>
-          <button type="button" className="secondary ocr-upload" disabled={ocrBusy} onClick={()=>ocrUploadRef.current?.click()}><Upload size={18}/> Upload Foto dari Galeri</button>
-        </div>
-        {ocrBusy&&<p className="ocr-progress">Sedang memproses foto...</p>}
-        {ocrFileName&&<small className="ocr-filename">{ocrFileName}</small>}
-        {ocrProgress&&<p className="ocr-progress">{ocrProgress}</p>}
-        {ocrRows.length>0&&<><div className="ocr-results"><div className="ocr-result-head"><b>Hasil pembacaan</b><small>{ocrRows.filter(x=>x.matched).length} cocok dari {ocrRows.length} baris</small></div>
-          {ocrRows.map((row,i)=><div className="ocr-row" key={row.id}><div className="ocr-row-source">{row.source}{row.matchScore ? " · Cocok " + row.matchScore + "%" : ""}{row.needsReview ? " · Perlu dicek" : ""}</div><select value={row.kode} onChange={e=>{const item=items.find(x=>x.kode===e.target.value);setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,kode:item?.kode||"",nama:item?.nama||x.nama,satuan:item?.satuan||"PCS",matched:!!item}:x));}}><option value="">Pilih barang Master</option>{items.map(x=><option key={x.kode} value={x.kode}>{x.kode} · {x.nama}</option>)}</select><input aria-label="Jumlah terbaca" type="number" min="0.01" step="any" value={row.jumlah} onChange={e=>setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,jumlah:e.target.value}:x))}/></div>)}
-        </div><p className="ocr-warning">Periksa setiap nama dan angka. Hasil OCR hanya saran dan belum disimpan ke database.</p><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setOcrOpen(false)}>Batal</button><button type="button" className="primary" onClick={addOcrRowsToCart}>Masukkan ke Keranjang</button></div></>}
-      </section>
-    </div>}
-    {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
-      <form className="modal" onSubmit={save}>
-        <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):form.sheet==="Penjualan"?(form.mode==="edit"?"Edit Penjualan":"Tambah Penjualan"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
-        <div className="modal-form-grid">
-          {form.sheet==="Master_Barang" ? <>
-          <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required disabled={form.mode==="edit"}/>
-          <Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/>
-          <Field label="Kategori" value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
-          <Field label="Satuan" value={form.satuan||"PCS"} onChange={v=>setForm({...form,satuan:v})}/>
-          <Field label="Stok Minimum" type="number" value={form.stok_minimum||0} onChange={v=>setForm({...form,stok_minimum:v})}/>
-        </> : <>
-          <Field label="Tanggal" type="date" value={form.tanggal} onChange={v=>setForm({...form,tanggal:v})} required/>
-          <ItemPicker items={calc} value={form.kode} onChange={item=>setForm({...form,kode:item.kode,nama:item.nama,satuan:item.satuan||"PCS"})}/>
-          {selectedItem && <div className="current-stock"><span>Stok sistem saat ini</span><b>{fmt(selectedItem.sistem)} {selectedItem.satuan||""}</b></div>}
-          <div className="qty-field"><span>{form.sheet==="Stok_Opname"?"Stok fisik":"Jumlah"}</span><Stepper value={form.jumlah} onChange={v=>setForm({...form,jumlah:v})}/></div>
-          {form.sheet==="Stok_Opname" && delta!==null && <div className={"delta-box "+(delta>0?"positive-bg":delta<0?"negative-bg":"neutral-bg")}><small>Selisih real-time</small><strong>{delta>0?"+":""}{fmt(delta)}</strong><span>{delta>0?"Lebih dari stok sistem":delta<0?"Kurang dari stok sistem":"Sesuai stok sistem"}</span></div>}
-          <Field label={form.sheet==="Barang_Reject"?"Kategori / Alasan Reject":"Kategori (opsional)"} value={form.kategori} onChange={v=>setForm({...form,kategori:v})}/>
-          <Field label="Catatan" value={form.catatan} onChange={v=>setForm({...form,catatan:v})}/>
-        </>}
-        </div>
-
-        <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setModal(false)}>Batal</button><button className="primary" disabled={saving}>{saving?"Menyimpan...":form.mode==="edit"?"Simpan Perubahan":"Simpan Data"}</button></div>
-      </form>
-    </div>}
     {toast && <div className="toast" role="status"><Check size={17}/>{toast}</div>}
   </div>;
 }
