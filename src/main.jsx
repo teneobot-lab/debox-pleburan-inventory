@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+import XLSX from "xlsx-js-style";
 import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
@@ -253,20 +253,49 @@ function App() {
     return rows.filter(r=>reportType!=="Selisih"||r.jenis==="Selisih").sort((a,b)=>String(b.tanggal||"").localeCompare(String(a.tanggal||"")));
   },[data,reportFrom,reportTo,reportType,reportQuery]);
   const exportReport = () => {
-    const rows = reportRows.map(r => ({
-      "Tanggal": r.tanggal || "",
-      "Jenis Transaksi": String(r.jenis || "").replaceAll("_", " "),
-      "Kode Barang": r.kode || "",
-      "Nama Barang": r.nama || "",
-      "Jumlah / Selisih": Number(r.jumlah || 0),
-      "Satuan": r.satuan || "PCS",
-      "Stok Sistem": r.stok_sistem === undefined ? "" : Number(r.stok_sistem),
-      "Stok Fisik": r.stok_fisik === undefined ? "" : Number(r.stok_fisik),
-      "Catatan": r.catatan || ""
-    }));
+    const rows = reportRows.map(r => {
+      const isDifference = String(r.jenis || "").toLowerCase() === "selisih";
+      const difference = Number(r.jumlah || 0);
+      return {
+        "Tanggal": r.tanggal || "",
+        "Jenis Transaksi": String(r.jenis || "").replaceAll("_", " "),
+        "Kode Barang": r.kode || "",
+        "Nama Barang": r.nama || "",
+        "Jumlah / Selisih": difference,
+        "Status Selisih": isDifference ? difference < 0 ? "MINUS" : difference > 0 ? "SURPLUS" : "SESUAI" : "",
+        "Satuan": r.satuan || "PCS",
+        "Stok Sistem": r.stok_sistem === undefined ? "" : Number(r.stok_sistem),
+        "Stok Fisik": r.stok_fisik === undefined ? "" : Number(r.stok_fisik),
+        "Catatan": r.catatan || ""
+      };
+    });
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows, {header:["Tanggal","Jenis Transaksi","Kode Barang","Nama Barang","Jumlah / Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"]});
-    ws["!cols"] = [{wch:14},{wch:20},{wch:18},{wch:30},{wch:18},{wch:12},{wch:15},{wch:15},{wch:36}];
+    const headers = ["Tanggal","Jenis Transaksi","Kode Barang","Nama Barang","Jumlah / Selisih","Status Selisih","Satuan","Stok Sistem","Stok Fisik","Catatan"];
+    const ws = XLSX.utils.json_to_sheet(rows, {header:headers});
+    const headerStyle = { fill:{fgColor:{rgb:"D71920"}}, font:{bold:true,color:{rgb:"FFFFFF"}}, alignment:{horizontal:"center",vertical:"center"} };
+    headers.forEach((_,col) => {
+      const cell = XLSX.utils.encode_cell({r:0,c:col});
+      if (ws[cell]) ws[cell].s = headerStyle;
+    });
+    reportRows.forEach((r,index) => {
+      if (String(r.jenis || "").toLowerCase() !== "selisih") return;
+      const value = Number(r.jumlah || 0);
+      const negative = value < 0;
+      const positive = value > 0;
+      const fill = negative ? "FCE4D6" : positive ? "E2F0D9" : "DDEBF7";
+      const font = negative ? "C00000" : positive ? "548235" : "1F4E78";
+      [4,5].forEach(col => {
+        const cell = XLSX.utils.encode_cell({r:index+1,c:col});
+        if (ws[cell]) ws[cell].s = {
+          fill:{fgColor:{rgb:fill}},
+          font:{bold:true,color:{rgb:font}},
+          alignment:{horizontal:col===4?"right":"center",vertical:"center"}
+        };
+      });
+    });
+    ws["!cols"] = [{wch:14},{wch:20},{wch:18},{wch:30},{wch:18},{wch:16},{wch:12},{wch:15},{wch:15},{wch:36}];
+    ws["!autofilter"] = {ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length,c:headers.length-1}})};
+    ws["!freeze"] = {xSplit:0,ySplit:1};
     XLSX.utils.book_append_sheet(wb, ws, "Data Laporan");
     const info = [
       ["DEBOX PLEBURAN - LAPORAN"],
