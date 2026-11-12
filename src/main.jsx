@@ -115,6 +115,20 @@ function App() {
     setForm({ ...emptyForm, sheet, satuan:"PCS", mode:"create" });
     setModal(true); setExpanded("");
   };
+  const openEditPenjualan = item => {
+    setForm({ ...item, sheet:"Penjualan", mode:"edit", jumlah:String(item.jumlah??""), satuan:item.satuan||"PCS" });
+    setModal(true); setExpandedTransactionDate("");
+  };
+  const deletePenjualan = async item => {
+    if(!item.id){setError("Transaksi ini tidak memiliki ID sehingga tidak dapat dihapus.");return;}
+    if(!window.confirm("Hapus penjualan "+item.nama+" sebanyak "+fmt(item.jumlah)+" "+(item.satuan||"PCS")+"? Stok sistem akan dihitung ulang.")) return;
+    setSaving(true); setError("");
+    try {
+      await api("delete",{sheet:"Penjualan",id:item.id});
+      setToast("Transaksi penjualan berhasil dihapus."); await load();
+    } catch(e){setError(e.message);setToast(e.message);}
+    finally{setSaving(false);}
+  };
   const openEditBarang = item => {
     setForm({ kode:item.kode, nama:item.nama||"", kategori:item.kategori||"", satuan:item.satuan||"PCS", stok_minimum:String(item.stok_minimum??0), sheet:"Master_Barang", mode:"edit" });
     setModal(true); setExpanded("");
@@ -186,6 +200,9 @@ function App() {
       if(form.sheet==="Master_Barang" && form.mode==="edit") {
         await api("update",{sheet:"Master_Barang",kode:form.kode,row:{nama:form.nama,kategori:form.kategori,satuan:form.satuan,stok_minimum:form.stok_minimum}});
         setToast("Data barang berhasil diperbarui.");
+      } else if(form.sheet==="Penjualan" && form.mode==="edit") {
+        await api("update",{sheet:"Penjualan",id:form.id,row:{tanggal:form.tanggal,kode:form.kode,nama:form.nama,jumlah:form.jumlah,satuan:form.satuan,kategori:form.kategori,catatan:form.catatan}});
+        setToast("Transaksi penjualan berhasil diperbarui.");
       } else {
         await api("create", { sheet: form.sheet, row: { ...form, jumlah: Number(form.jumlah), waktu: new Date().toISOString() } });
         setToast("Data berhasil disimpan.");
@@ -484,6 +501,7 @@ function App() {
                 {opened && <div className="date-transaction-details">{entries.map((row,index)=><div className="date-transaction-item" key={row.id||row.kode+"-"+index}>
                   <span><b>{row.nama||row.kode}</b><small>{row.kode}{row.kategori?" · "+row.kategori:""}{row.catatan?" · "+row.catatan:""}</small></span>
                   <strong>{fmt(row.jumlah)} <small>{row.satuan||"unit"}</small></strong>
+                  {page==="Penjualan" && <span className="sales-row-actions"><button type="button" className="secondary" onClick={()=>openEditPenjualan(row)}>Edit</button><button type="button" className="danger-action" onClick={()=>deletePenjualan(row)}>Hapus</button></span>}
                 </div>)}</div>}
               </section>;
             }) : <EmptyState text="Belum ada transaksi pada pencarian ini."/>}</div>
@@ -505,7 +523,7 @@ function App() {
 
     {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
       <form className="modal" onSubmit={save}>
-        <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
+        <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):form.sheet==="Penjualan"?(form.mode==="edit"?"Edit Penjualan":"Tambah Penjualan"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
         {form.sheet==="Master_Barang" ? <>
           <Field label="Kode Barang" value={form.kode} onChange={v=>setForm({...form,kode:v})} required disabled={form.mode==="edit"}/>
           <Field label="Nama Barang" value={form.nama} onChange={v=>setForm({...form,nama:v})} required/>
@@ -514,7 +532,7 @@ function App() {
           <Field label="Stok Minimum" type="number" value={form.stok_minimum||0} onChange={v=>setForm({...form,stok_minimum:v})}/>
         </> : <>
           <Field label="Tanggal" type="date" value={form.tanggal} onChange={v=>setForm({...form,tanggal:v})} required/>
-          <ItemPicker items={calc} value={form.kode} onChange={item=>setForm({...form,kode:item.kode,nama:item.nama})}/>
+          <ItemPicker items={calc} value={form.kode} onChange={item=>setForm({...form,kode:item.kode,nama:item.nama,satuan:item.satuan||"PCS"})}/>
           {selectedItem && <div className="current-stock"><span>Stok sistem saat ini</span><b>{fmt(selectedItem.sistem)} {selectedItem.satuan||""}</b></div>}
           <div className="qty-field"><span>{form.sheet==="Stok_Opname"?"Stok fisik":"Jumlah"}</span><Stepper value={form.jumlah} onChange={v=>setForm({...form,jumlah:v})}/></div>
           {form.sheet==="Stok_Opname" && delta!==null && <div className={"delta-box "+(delta>0?"positive-bg":delta<0?"negative-bg":"neutral-bg")}><small>Selisih real-time</small><strong>{delta>0?"+":""}{fmt(delta)}</strong><span>{delta>0?"Lebih dari stok sistem":delta<0?"Kurang dari stok sistem":"Sesuai stok sistem"}</span></div>}
