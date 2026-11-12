@@ -31,7 +31,7 @@ export function parseNumber(raw){
 }
 const UNIT_MAP={porsi:"Porsi",kilogram:"Kilogram",kg:"Kilogram",gram:"Gram",gr:"Gram",liter:"Liter",ltr:"Liter",ml:"ML",pcs:"Pcs",pc:"Pcs",pack:"Pack",pck:"Pack",pak:"Pack",roll:"Roll",box:"Box",dus:"Dus",kardus:"Kardus",botol:"Botol",btl:"Botol",rim:"Rim",lembar:"Lembar",lusin:"Lusin",lsn:"Lusin",buah:"Buah"};
 const UNIT_PATTERN=Object.keys(UNIT_MAP).sort((a,b)=>b.length-a.length).join("|");
-const QTY_UNIT_RE=new RegExp("([0-9OoIl|SB][0-9OoIl|SB.,]*)\\\\s*("+UNIT_PATTERN+")\\\\b","gi");
+const QTY_UNIT_RE=new RegExp("([0-9OoIl|SB][0-9OoIl|SB.,]*)\\s*("+UNIT_PATTERN+")\\b","gi");
 export function extractQuantityAndUnit(body){
   const matches=[...String(body).matchAll(QTY_UNIT_RE)];
   for(let i=matches.length-1;i>=0;i--){
