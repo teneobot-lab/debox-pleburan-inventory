@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Package, ArrowDownToLine, ShoppingCart, Trash2,
   ClipboardList, ChartNoAxesCombined, History, FileBarChart, RefreshCw, FileSpreadsheet,
   Plus, Search, Menu, X, AlertTriangle, Boxes, MoreHorizontal, ChevronDown,
-  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays, FileText, Database, Upload, Download
+  ChevronUp, Check, ArrowUpRight, LogOut, CalendarDays, FileText, Database, Upload, Download, ScanText
 } from "lucide-react";
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
@@ -54,6 +54,8 @@ function App() {
   const [quickAddQuery, setQuickAddQuery] = useState(""), [quickAddOpen, setQuickAddOpen] = useState(false);
   const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
   const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
+  const [ocrOpen,setOcrOpen]=useState(false),[ocrBusy,setOcrBusy]=useState(false),[ocrProgress,setOcrProgress]=useState(""),[ocrRows,setOcrRows]=useState([]),[ocrFileName,setOcrFileName]=useState("");
+  const ocrInputRef=useRef(null);
   const [expandedTransactionDate, setExpandedTransactionDate] = useState("");
   const [historyType, setHistoryType] = useState("Semua");
   const [reportFrom, setReportFrom] = useState("");
@@ -173,6 +175,30 @@ function App() {
       return next;
     });
     setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
+  };
+  const scanA4Document = async file => {
+    if(!file) return;
+    setOcrFileName(file.name);setOcrRows([]);setOcrBusy(true);setOcrProgress("Menyiapkan OCR...");
+    try{
+      if(!window.Tesseract) throw new Error("Mesin OCR belum termuat. Muat ulang halaman dan coba lagi.");
+      const result=await window.Tesseract.recognize(file,"ind+eng",{logger:m=>{if(m.status==="recognizing text")setOcrProgress("Membaca dokumen "+Math.round((m.progress||0)*100)+"%");}});
+      const text=result.data.text||"";
+      const normalized=text.replace(/[|]/g,"I").split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
+      const detected=normalized.map((line,index)=>{
+        const item=items.find(x=>line.toLowerCase().includes(String(x.kode||"").toLowerCase()) || line.toLowerCase().includes(String(x.nama||"").toLowerCase()));
+        const nums=[...line.matchAll(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)(?=\\s|$)/g)].map(m=>Number(m[1].replace(",","."))).filter(Number.isFinite);
+        const qty=nums.length?nums[nums.length-1]:1;
+        return {id:index,kode:item?.kode||"",nama:item?.nama||line,jumlah:qty,satuan:item?.satuan||"PCS",matched:!!item,source:line};
+      }).filter(x=>x.source.length>1);
+      setOcrRows(detected);setOcrProgress(detected.length?"Periksa hasil pembacaan sebelum dimasukkan.":"Teks tidak terbaca. Coba foto ulang dengan pencahayaan baik.");
+    }catch(e){setError("OCR gagal: "+e.message);setOcrProgress("");}
+    finally{setOcrBusy(false);}
+  };
+  const addOcrRowsToCart=()=>{
+    const valid=ocrRows.filter(x=>x.kode&&Number(x.jumlah)>0);
+    if(!valid.length){setToast("Belum ada baris yang cocok dengan Master Barang.");return;}
+    setCart(prev=>{const next=[...prev];for(const row of valid){const i=next.findIndex(x=>x.kode===row.kode);const entry={kode:row.kode,nama:row.nama,jumlah:Number(row.jumlah),satuan:row.satuan||"PCS"};if(i>=0)next[i]={...next[i],jumlah:next[i].jumlah+entry.jumlah};else next.push(entry);}return next;});
+    setOcrOpen(false);setOcrRows([]);setToast(valid.length+" baris hasil scan ditambahkan ke keranjang.");
   };
   const removeCartItem = index => setCart(prev => prev.filter((_,i)=>i!==index));
   const saveCart = async () => {
@@ -391,7 +417,7 @@ function App() {
 
         {!loading && isTxn && <div className="cart-workspace">
           <div className="cart-date-row"><div><b>Tanggal transaksi</b><small>Semua item dalam keranjang memakai tanggal ini.</small></div><input type="date" value={cartDate} onChange={e=>setCartDate(e.target.value)} aria-label="Tanggal transaksi"/></div>
-          <div className="cart-entry">
+          <div className="cart-entry">\n            {page==="Barang Masuk" && <div className="ocr-launch"><button type="button" className="secondary" onClick={()=>{setOcrOpen(true);setOcrProgress("");setOcrRows([]);}}><ScanText size={17}/> Scan dari Foto A4</button><small>Foto atau unggah daftar barang cetak</small></div>
             <label className="searchbox quick-add-search"><Search size={19}/><input
               value={quickAddQuery}
               onFocus={()=>setQuickAddOpen(true)}
@@ -522,6 +548,19 @@ function App() {
     </nav>
     {moreOpen && <><button className="more-scrim" aria-label="Tutup menu" onClick={()=>setMoreOpen(false)}/><div className="more-sheet">{moreMenus.map(label=>{const Icon=menus.find(x=>x[0]===label)?.[1];return <button key={label} onClick={()=>changePage(label)}><Icon size={19}/>{label}</button>;})}</div></>}
 
+    {ocrOpen && <div className="modal-backdrop ocr-backdrop" onMouseDown={e=>e.target===e.currentTarget&&!ocrBusy&&setOcrOpen(false)}>
+      <section className="modal ocr-modal">
+        <div className="modal-head"><div><small>OCR DOKUMEN</small><h2>Scan Daftar Barang A4</h2></div><button type="button" className="icon-btn" onClick={()=>setOcrOpen(false)} aria-label="Tutup"><X/></button></div>
+        <p className="ocr-help">Unggah foto atau hasil scan kertas A4 yang dicetak jelas. Sistem membaca teks lalu mencocokkan kode/nama barang dengan Master Barang.</p>
+        <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" hidden onChange={e=>scanA4Document(e.target.files?.[0])}/>
+        <button type="button" className="primary ocr-upload" disabled={ocrBusy} onClick={()=>ocrInputRef.current?.click()}><ScanText size={18}/> {ocrBusy?"Sedang membaca...":"Ambil Foto / Pilih Gambar"}</button>
+        {ocrFileName&&<small className="ocr-filename">{ocrFileName}</small>}
+        {ocrProgress&&<p className="ocr-progress">{ocrProgress}</p>}
+        {ocrRows.length>0&&<><div className="ocr-results"><div className="ocr-result-head"><b>Hasil pembacaan</b><small>{ocrRows.filter(x=>x.matched).length} cocok dari {ocrRows.length} baris</small></div>
+          {ocrRows.map((row,i)=><div className="ocr-row" key={row.id}><div className="ocr-row-source">{row.source}</div><select value={row.kode} onChange={e=>{const item=items.find(x=>x.kode===e.target.value);setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,kode:item?.kode||"",nama:item?.nama||x.nama,satuan:item?.satuan||"PCS",matched:!!item}:x));}}><option value="">Pilih barang Master</option>{items.map(x=><option key={x.kode} value={x.kode}>{x.kode} · {x.nama}</option>)}</select><input aria-label="Jumlah terbaca" type="number" min="0.01" step="any" value={row.jumlah} onChange={e=>setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,jumlah:e.target.value}:x))}/></div>)}
+        </div><p className="ocr-warning">Periksa setiap nama dan angka. Hasil OCR hanya saran dan belum disimpan ke database.</p><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setOcrOpen(false)}>Batal</button><button type="button" className="primary" onClick={addOcrRowsToCart}>Masukkan ke Keranjang</button></div></>}
+      </section>
+    </div>}
     {modal && <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&setModal(false)}>
       <form className="modal" onSubmit={save}>
         <div className="modal-head"><div><small>{form.mode==="edit"?"EDIT DATA":"INPUT DATA"}</small><h2>{form.sheet==="Master_Barang"?(form.mode==="edit"?"Edit Barang":"Tambah Barang"):form.sheet==="Penjualan"?(form.mode==="edit"?"Edit Penjualan":"Tambah Penjualan"):"Tambah "+page}</h2></div><button type="button" className="icon-btn" onClick={()=>setModal(false)} aria-label="Tutup"><X/></button></div>
