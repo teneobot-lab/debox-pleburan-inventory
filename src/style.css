@@ -338,3 +338,8 @@ html{height:100%;overscroll-behavior-y:contain}body{min-height:100%;overscroll-b
 .backup-warning svg{flex:none;margin-top:1px;color:#c58a26}
 @media(max-width:850px){.report-export-actions{width:100%}.report-export-actions .export-btn{flex:1;justify-content:center}.data-tools-actions{display:grid;grid-template-columns:1fr}.data-tools-actions .export-btn{width:100%;justify-content:center}}
 @media(max-width:440px){.report-export-actions{display:grid;grid-template-columns:1fr}}
+
+.sales-row-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.sales-row-actions button{font-size:11px;padding:6px 10px;min-height:30px}
+.date-transaction-item{gap:10px}
+@media(max-width:600px){.date-transaction-item{flex-wrap:wrap}.sales-row-actions{width:100%;margin-left:0;justify-content:flex-end}}
