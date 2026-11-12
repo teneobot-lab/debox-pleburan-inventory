@@ -369,7 +369,7 @@ function App() {
 
   return <div className="app">
     <aside className="sidebar">
-      <div className="brand"><div className="brandmark logo-slot"><img src="/logo-debox.png" alt="DEBOX PLEBURAN" onError={e=>{e.currentTarget.style.display="none";}}/><span>D</span></div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
+      <div className="brand"><div className="brandmark logo-slot"><img src="/logo-debox.jpg" alt="DEBOX PLEBURAN" onError={e=>{e.currentTarget.style.display="none";}}/><span>D</span></div><div><b>DEBOX PLEBURAN</b><small>INVENTORY</small></div></div>
       <div className="nav-caption">MENU UTAMA</div>
       <nav>{menus.map(([label,Icon]) => <button key={label} className={page===label?"nav active":"nav"} onClick={()=>changePage(label)}><Icon size={18}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-foot"><span className="live-dot"/> Terhubung ke Supabase</div>
