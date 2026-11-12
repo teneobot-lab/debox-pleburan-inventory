@@ -176,21 +176,96 @@ function App() {
     });
     setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
   };
+  const normalizeOcrText = value => String(value || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[|!]/g,"i").replace(/[“”"']/g,"")
+    .replace(/[^a-z0-9.,/\s-]/g," ")
+    .replace(/\s+/g," ").trim();
+  const editDistance = (a,b) => {
+    const prev=Array.from({length:b.length+1},(_,i)=>i);
+    for(let i=1;i<=a.length;i++){
+      let diagonal=prev[0];prev[0]=i;
+      for(let j=1;j<=b.length;j++){
+        const old=prev[j];
+        prev[j]=Math.min(prev[j]+1,prev[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));
+        diagonal=old;
+      }
+    }
+    return prev[b.length];
+  };
+  const matchOcrItem = line => {
+    const text=normalizeOcrText(line);
+    let best=null,bestScore=0;
+    for(const item of items){
+      const code=normalizeOcrText(item.kode);
+      const name=normalizeOcrText(item.nama);
+      let score=0;
+      if(code && text.includes(code)) score=1;
+      if(name && text.includes(name)) score=Math.max(score,1);
+      if(!score && name){
+        const words=name.split(" ").filter(w=>w.length>2);
+        const hits=words.filter(word=>text.includes(word)).length;
+        const tokenScore=words.length?hits/words.length:0;
+        const compactText=text.replace(/\s/g,"");
+        const compactName=name.replace(/\s/g,"");
+        const distance=editDistance(compactName,compactText.slice(0,Math.max(compactName.length,Math.min(compactText.length,compactName.length+3))));
+        const fuzzy=1-distance/Math.max(compactName.length,1);
+        score=Math.max(tokenScore*0.88,fuzzy*0.82);
+      }
+      if(score>bestScore){best=item;bestScore=score;}
+    }
+    return bestScore>=0.58?best:null;
+  };
+  const preprocessOcrImage = async file => {
+    const bitmap=await createImageBitmap(file);
+    const scale=Math.min(2.2,2400/Math.max(bitmap.width,bitmap.height));
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+    canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+    bitmap.close?.();
+    const image=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const pixels=image.data;
+    for(let i=0;i<pixels.length;i+=4){
+      const gray=0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2];
+      const contrast=Math.max(0,Math.min(255,(gray-128)*1.45+128));
+      pixels[i]=pixels[i+1]=pixels[i+2]=contrast;
+    }
+    ctx.putImageData(image,0,0);
+    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("Foto tidak dapat diproses.")),"image/png"));
+  };
   const scanA4Document = async file => {
     if(!file) return;
-    setOcrFileName(file.name);setOcrRows([]);setOcrBusy(true);setOcrProgress("Menyiapkan OCR...");
+    if(!file.type.startsWith("image/")){setError("Pilih file foto JPG, PNG, atau WebP.");return;}
+    setOcrFileName(file.name);setOcrRows([]);setOcrBusy(true);setOcrProgress("Menyiapkan foto...");
     try{
-      if(!window.Tesseract) throw new Error("Mesin OCR belum termuat. Muat ulang halaman dan coba lagi.");
-      const result=await window.Tesseract.recognize(file,"ind+eng",{logger:m=>{if(m.status==="recognizing text")setOcrProgress("Membaca dokumen "+Math.round((m.progress||0)*100)+"%");}});
-      const text=result.data.text||"";
-      const normalized=text.replace(/[|]/g,"I").split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean);
-      const detected=normalized.map((line,index)=>{
-        const item=items.find(x=>line.toLowerCase().includes(String(x.kode||"").toLowerCase()) || line.toLowerCase().includes(String(x.nama||"").toLowerCase()));
-        const nums=[...line.matchAll(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)(?=\\s|$)/g)].map(m=>Number(m[1].replace(",","."))).filter(Number.isFinite);
-        const qty=nums.length?nums[nums.length-1]:1;
+      if(!window.Tesseract) throw new Error("Mesin OCR belum termuat. Periksa koneksi internet lalu muat ulang halaman.");
+      const image=await preprocessOcrImage(file);
+      setOcrProgress("Membaca teks pada foto...");
+      const result=await window.Tesseract.recognize(image,"ind+eng",{
+        logger:m=>{
+          if(m.status==="recognizing text")setOcrProgress("Membaca dokumen "+Math.round((m.progress||0)*100)+"%");
+          else if(m.status==="loading language traineddata")setOcrProgress("Memuat bahasa OCR...");
+        },
+        tessedit_pageseg_mode:6,
+        preserve_interword_spaces:"1"
+      });
+      const rawText=result.data.text||"";
+      const lines=rawText.replace(/\r/g,"\n").split(/\n+/).map(x=>x.replace(/\s+/g," ").trim()).filter(x=>x.length>1);
+      const detected=lines.map((line,index)=>{
+        const item=matchOcrItem(line);
+        const numberMatches=[...line.matchAll(/(?:^|\s)(\d{1,7}(?:[.,]\d{1,3})?)(?=\s|$)/g)];
+        const numbers=numberMatches.map(m=>Number(m[1].replace(",", "."))).filter(n=>Number.isFinite(n)&&n>0);
+        const qty=numbers.length?numbers[numbers.length-1]:"";
         return {id:index,kode:item?.kode||"",nama:item?.nama||line,jumlah:qty,satuan:item?.satuan||"PCS",matched:!!item,source:line};
-      }).filter(x=>x.source.length>1);
-      setOcrRows(detected);setOcrProgress(detected.length?"Periksa hasil pembacaan sebelum dimasukkan.":"Teks tidak terbaca. Coba foto ulang dengan pencahayaan baik.");
+      });
+      setOcrRows(detected);
+      setOcrProgress(detected.length
+        ?"Terdeteksi "+detected.length+" baris. Cocokkan barang dan periksa jumlah sebelum menyimpan."
+        :"Teks belum terbaca. Coba foto ulang dengan kertas rata, terang, dan seluruh tabel terlihat.");
     }catch(e){setError("OCR gagal: "+e.message);setOcrProgress("");}
     finally{setOcrBusy(false);}
   };
