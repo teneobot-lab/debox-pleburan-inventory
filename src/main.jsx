@@ -10,6 +10,7 @@ import {
 import { api, getSession, watchAuth, signIn, signOut } from "./api";
 import "./style.css";
 import deboxLogo from "../logo-debox.jpg";
+import { scanA4Document as scanA4DocumentFile } from "./ocr.js";
 
 const menus = [
   ["Dashboard", LayoutDashboard], ["Data Barang", Package], ["Stok Awal", Boxes],
@@ -176,98 +177,45 @@ function App() {
     });
     setCartItem(null); setCartQty(""); setQuickAddQuery(""); setQuickAddOpen(false);
   };
-  const normalizeOcrText = value => String(value || "")
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .replace(/[|!]/g,"i").replace(/[“”"']/g,"")
-    .replace(/[^a-z0-9.,/\s-]/g," ")
-    .replace(/\s+/g," ").trim();
-  const editDistance = (a,b) => {
-    const prev=Array.from({length:b.length+1},(_,i)=>i);
-    for(let i=1;i<=a.length;i++){
-      let diagonal=prev[0];prev[0]=i;
-      for(let j=1;j<=b.length;j++){
-        const old=prev[j];
-        prev[j]=Math.min(prev[j]+1,prev[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));
-        diagonal=old;
-      }
-    }
-    return prev[b.length];
-  };
-  const matchOcrItem = line => {
-    const text=normalizeOcrText(line);
-    let best=null,bestScore=0;
-    for(const item of items){
-      const code=normalizeOcrText(item.kode);
-      const name=normalizeOcrText(item.nama);
-      let score=0;
-      if(code && text.includes(code)) score=1;
-      if(name && text.includes(name)) score=Math.max(score,1);
-      if(!score && name){
-        const words=name.split(" ").filter(w=>w.length>2);
-        const hits=words.filter(word=>text.includes(word)).length;
-        const tokenScore=words.length?hits/words.length:0;
-        const compactText=text.replace(/\s/g,"");
-        const compactName=name.replace(/\s/g,"");
-        const distance=editDistance(compactName,compactText.slice(0,Math.max(compactName.length,Math.min(compactText.length,compactName.length+3))));
-        const fuzzy=1-distance/Math.max(compactName.length,1);
-        score=Math.max(tokenScore*0.88,fuzzy*0.82);
-      }
-      if(score>bestScore){best=item;bestScore=score;}
-    }
-    return bestScore>=0.58?best:null;
-  };
-  const preprocessOcrImage = async file => {
-    const bitmap=await createImageBitmap(file);
-    const scale=Math.min(2.2,2400/Math.max(bitmap.width,bitmap.height));
-    const canvas=document.createElement("canvas");
-    canvas.width=Math.max(1,Math.round(bitmap.width*scale));
-    canvas.height=Math.max(1,Math.round(bitmap.height*scale));
-    const ctx=canvas.getContext("2d",{willReadFrequently:true});
-    ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
-    bitmap.close?.();
-    const image=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const pixels=image.data;
-    for(let i=0;i<pixels.length;i+=4){
-      const gray=0.299*pixels[i]+0.587*pixels[i+1]+0.114*pixels[i+2];
-      const contrast=Math.max(0,Math.min(255,(gray-128)*1.45+128));
-      pixels[i]=pixels[i+1]=pixels[i+2]=contrast;
-    }
-    ctx.putImageData(image,0,0);
-    return await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("Foto tidak dapat diproses.")),"image/png"));
-  };
   const scanA4Document = async file => {
-    if(!file) return;
-    if(!file.type.startsWith("image/")){setError("Pilih file foto JPG, PNG, atau WebP.");return;}
-    setOcrFileName(file.name);setOcrRows([]);setOcrBusy(true);setOcrProgress("Menyiapkan foto...");
-    try{
-      if(!window.Tesseract) throw new Error("Mesin OCR belum termuat. Periksa koneksi internet lalu muat ulang halaman.");
-      const image=await preprocessOcrImage(file);
-      setOcrProgress("Membaca teks pada foto...");
-      const result=await window.Tesseract.recognize(image,"ind+eng",{
-        logger:m=>{
-          if(m.status==="recognizing text")setOcrProgress("Membaca dokumen "+Math.round((m.progress||0)*100)+"%");
-          else if(m.status==="loading language traineddata")setOcrProgress("Memuat bahasa OCR...");
-        },
-        tessedit_pageseg_mode:6,
-        preserve_interword_spaces:"1"
+    if (!file) return;
+    setOcrFileName(file.name);
+    setOcrRows([]);
+    setOcrBusy(true);
+    setOcrProgress("Menyiapkan foto...");
+    try {
+      const result = await scanA4DocumentFile(file, items, progress => {
+        setOcrProgress("Memproses dokumen " + progress + "%");
       });
-      const rawText=result.data.text||"";
-      const lines=rawText.replace(/\r/g,"\n").split(/\n+/).map(x=>x.replace(/\s+/g," ").trim()).filter(x=>x.length>1);
-      const detected=lines.map((line,index)=>{
-        const item=matchOcrItem(line);
-        const numberMatches=[...line.matchAll(/(?:^|\s)(\d{1,7}(?:[.,]\d{1,3})?)(?=\s|$)/g)];
-        const numbers=numberMatches.map(m=>Number(m[1].replace(",", "."))).filter(n=>Number.isFinite(n)&&n>0);
-        const qty=numbers.length?numbers[numbers.length-1]:"";
-        return {id:index,kode:item?.kode||"",nama:item?.nama||line,jumlah:qty,satuan:item?.satuan||"PCS",matched:!!item,source:line};
-      });
+      const detected = result.rows.map((row, index) => ({
+        id: index,
+        no: row.no,
+        kode: row.item?.kode || "",
+        nama: row.item?.nama || row.namaTerbaca,
+        jumlah: row.jumlah,
+        satuan: row.satuan || row.item?.satuan || "PCS",
+        matched: Boolean(row.item),
+        matchScore: row.matchScore,
+        needsReview: row.needsReview,
+        source: row.originalText
+      }));
       setOcrRows(detected);
-      setOcrProgress(detected.length
-        ?"Terdeteksi "+detected.length+" baris. Cocokkan barang dan periksa jumlah sebelum menyimpan."
-        :"Teks belum terbaca. Coba foto ulang dengan kertas rata, terang, dan seluruh tabel terlihat.");
-    }catch(e){setError("OCR gagal: "+e.message);setOcrProgress("");}
-    finally{setOcrBusy(false);}
+      setOcrProgress(
+        detected.length
+          ? "Terbaca " + detected.length + " baris. " +
+            detected.filter(row => row.matched).length +
+            " cocok dengan Master Barang. Periksa hasil sebelum memasukkan ke keranjang."
+          : "Tidak ada baris jumlah dan satuan yang berhasil dikenali. Periksa foto atau format dokumen."
+      );
+      if (result.missingNumbers.length) {
+        setOcrProgress(prev => prev + " Nomor baris yang mungkin terlewat: " + result.missingNumbers.join(", ") + ".");
+      }
+    } catch (e) {
+      setError("OCR gagal: " + e.message);
+      setOcrProgress("");
+    } finally {
+      setOcrBusy(false);
+    }
   };
   const addOcrRowsToCart=()=>{
     const valid=ocrRows.filter(x=>x.kode&&Number(x.jumlah)>0);
@@ -638,7 +586,7 @@ function App() {
         {ocrFileName&&<small className="ocr-filename">{ocrFileName}</small>}
         {ocrProgress&&<p className="ocr-progress">{ocrProgress}</p>}
         {ocrRows.length>0&&<><div className="ocr-results"><div className="ocr-result-head"><b>Hasil pembacaan</b><small>{ocrRows.filter(x=>x.matched).length} cocok dari {ocrRows.length} baris</small></div>
-          {ocrRows.map((row,i)=><div className="ocr-row" key={row.id}><div className="ocr-row-source">{row.source}</div><select value={row.kode} onChange={e=>{const item=items.find(x=>x.kode===e.target.value);setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,kode:item?.kode||"",nama:item?.nama||x.nama,satuan:item?.satuan||"PCS",matched:!!item}:x));}}><option value="">Pilih barang Master</option>{items.map(x=><option key={x.kode} value={x.kode}>{x.kode} · {x.nama}</option>)}</select><input aria-label="Jumlah terbaca" type="number" min="0.01" step="any" value={row.jumlah} onChange={e=>setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,jumlah:e.target.value}:x))}/></div>)}
+          {ocrRows.map((row,i)=><div className="ocr-row" key={row.id}><div className="ocr-row-source">{row.source}{row.matchScore ? " · Cocok " + row.matchScore + "%" : ""}{row.needsReview ? " · Perlu dicek" : ""}</div><select value={row.kode} onChange={e=>{const item=items.find(x=>x.kode===e.target.value);setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,kode:item?.kode||"",nama:item?.nama||x.nama,satuan:item?.satuan||"PCS",matched:!!item}:x));}}><option value="">Pilih barang Master</option>{items.map(x=><option key={x.kode} value={x.kode}>{x.kode} · {x.nama}</option>)}</select><input aria-label="Jumlah terbaca" type="number" min="0.01" step="any" value={row.jumlah} onChange={e=>setOcrRows(prev=>prev.map((x,n)=>n===i?{...x,jumlah:e.target.value}:x))}/></div>)}
         </div><p className="ocr-warning">Periksa setiap nama dan angka. Hasil OCR hanya saran dan belum disimpan ke database.</p><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setOcrOpen(false)}>Batal</button><button type="button" className="primary" onClick={addOcrRowsToCart}>Masukkan ke Keranjang</button></div></>}
       </section>
     </div>}
