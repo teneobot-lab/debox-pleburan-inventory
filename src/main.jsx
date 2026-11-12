@@ -55,7 +55,7 @@ function App() {
   const [cartDate, setCartDate] = useState(today()), [cartItem, setCartItem] = useState(null);
   const [cartQty, setCartQty] = useState(""), [cart, setCart] = useState([]);
   const [ocrOpen,setOcrOpen]=useState(false),[ocrBusy,setOcrBusy]=useState(false),[ocrProgress,setOcrProgress]=useState(""),[ocrRows,setOcrRows]=useState([]),[ocrFileName,setOcrFileName]=useState("");
-  const ocrInputRef=useRef(null);
+  const ocrCameraRef=useRef(null), ocrUploadRef=useRef(null);
   const [expandedTransactionDate, setExpandedTransactionDate] = useState("");
   const [historyType, setHistoryType] = useState("Semua");
   const [reportFrom, setReportFrom] = useState("");
@@ -553,8 +553,13 @@ function App() {
       <section className="modal ocr-modal">
         <div className="modal-head"><div><small>OCR DOKUMEN</small><h2>Scan Daftar Barang A4</h2></div><button type="button" className="icon-btn" onClick={()=>setOcrOpen(false)} aria-label="Tutup"><X/></button></div>
         <p className="ocr-help">Unggah foto atau hasil scan kertas A4 yang dicetak jelas. Sistem membaca teks lalu mencocokkan kode/nama barang dengan Master Barang.</p>
-        <input ref={ocrInputRef} type="file" accept="image/*" capture="environment" hidden onChange={e=>scanA4Document(e.target.files?.[0])}/>
-        <button type="button" className="primary ocr-upload" disabled={ocrBusy} onClick={()=>ocrInputRef.current?.click()}><ScanText size={18}/> {ocrBusy?"Sedang membaca...":"Ambil Foto / Pilih Gambar"}</button>
+        <input ref={ocrCameraRef} type="file" accept="image/*" capture="environment" hidden onChange={e=>{scanA4Document(e.target.files?.[0]);e.target.value="";}}/>
+        <input ref={ocrUploadRef} type="file" accept="image/*" hidden onChange={e=>{scanA4Document(e.target.files?.[0]);e.target.value="";}}/>
+        <div className="ocr-upload-actions">
+          <button type="button" className="primary ocr-upload" disabled={ocrBusy} onClick={()=>ocrCameraRef.current?.click()}><ScanText size={18}/> Ambil Foto</button>
+          <button type="button" className="secondary ocr-upload" disabled={ocrBusy} onClick={()=>ocrUploadRef.current?.click()}><Upload size={18}/> Upload Foto dari Galeri</button>
+        </div>
+        {ocrBusy&&<p className="ocr-progress">Sedang memproses foto...</p>}
         {ocrFileName&&<small className="ocr-filename">{ocrFileName}</small>}
         {ocrProgress&&<p className="ocr-progress">{ocrProgress}</p>}
         {ocrRows.length>0&&<><div className="ocr-results"><div className="ocr-result-head"><b>Hasil pembacaan</b><small>{ocrRows.filter(x=>x.matched).length} cocok dari {ocrRows.length} baris</small></div>
